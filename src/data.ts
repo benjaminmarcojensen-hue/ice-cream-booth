@@ -161,8 +161,12 @@ export const seedData: AppData = {
   ],
   flavors: ['Vanilje', 'Chokolade', 'Lakrids', 'Citronsorbet', 'Oreo', 'Jordbær', 'Nougat'],
   settings: {
+    vatRegistered: true,
     vatRate: 25,
     currency: 'DKK',
+    salesPricesIncludeVat: true,
+    productCostsIncludeVat: true,
+    expensesIncludeVat: true,
     gufBucketPriceExVat: 639.66,
     gufPortionsPerBucket: 100,
     businessName: 'Isvognen / Ice Cream Booth',

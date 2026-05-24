@@ -65,8 +65,12 @@ export type StockItem = {
 }
 
 export type Settings = {
+  vatRegistered: boolean
   vatRate: number
   currency: 'DKK'
+  salesPricesIncludeVat: boolean
+  productCostsIncludeVat: boolean
+  expensesIncludeVat: boolean
   gufBucketPriceExVat: number
   gufPortionsPerBucket: number
   businessName: string
@@ -91,16 +95,27 @@ export type ProductLineResult = {
   product: Product
   quantity: number
   revenue: number
+  netRevenue: number
+  outputVat: number
   productCost: number
+  netProductCost: number
+  inputVat: number
   grossProfit: number
 }
 
 export type ReportTotals = {
   lines: ProductLineResult[]
   totalRevenue: number
+  netRevenue: number
+  outputVat: number
   totalProductCost: number
+  netProductCost: number
+  inputVatProductCosts: number
   grossProfit: number
   expenses: number
+  netExpenses: number
+  inputVatExpenses: number
+  vatPayable: number
   netProfit: number
   totalItems: number
 }

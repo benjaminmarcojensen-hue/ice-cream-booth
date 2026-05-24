@@ -11,6 +11,7 @@ import {
   getLowStockItems,
   getProductCost,
   monthKey,
+  splitVat,
   toInputDate,
 } from './calculations'
 import {
@@ -452,12 +453,14 @@ function App() {
         {activeTab === 'dashboard' && (
           <Screen title="Dashboard" kicker={toInputDate()}>
             <div className="metrics-grid">
-              <Metric label="Today's revenue" value={formatKr(todayTotals.totalRevenue, 0)} />
-              <Metric label="Today's gross profit" value={formatKr(todayTotals.grossProfit, 0)} tone="good" />
-              <Metric label="Today's expenses" value={formatKr(todayTotals.expenses, 0)} tone={todayTotals.expenses > 0 ? 'warn' : 'neutral'} />
-              <Metric label="Today's net profit" value={formatKr(todayTotals.netProfit, 0)} tone={todayTotals.netProfit >= 0 ? 'good' : 'bad'} />
-              <Metric label="Month revenue" value={formatKr(dashboardMonth.totalRevenue, 0)} />
-              <Metric label="Month net profit" value={formatKr(dashboardMonth.netProfit, 0)} tone={dashboardMonth.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Today's sales incl. moms" value={formatKr(todayTotals.totalRevenue, 0)} />
+              <Metric label="Today's sales ex. moms" value={formatKr(todayTotals.netRevenue, 0)} />
+              <Metric label="Today's profit ex. moms" value={formatKr(todayTotals.grossProfit, 0)} tone="good" />
+              <Metric label="Today's net profit ex. moms" value={formatKr(todayTotals.netProfit, 0)} tone={todayTotals.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Today moms payable" value={formatKr(todayTotals.vatPayable, 0)} tone="warn" />
+              <Metric label="Month sales incl. moms" value={formatKr(dashboardMonth.totalRevenue, 0)} />
+              <Metric label="Month net profit ex. moms" value={formatKr(dashboardMonth.netProfit, 0)} tone={dashboardMonth.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Month moms payable" value={formatKr(dashboardMonth.vatPayable, 0)} tone="warn" />
               <Metric label="Items sold this month" value={formatNumber(dashboardMonth.totalItems, 0)} />
               <Metric label="Best seller this month" value={dashboardMonth.bestSellingProduct} />
             </div>
@@ -508,9 +511,10 @@ function App() {
                   <tr>
                     <th>Product</th>
                     <th>Qty</th>
-                    <th>Revenue</th>
-                    <th>Cost</th>
-                    <th>Gross profit</th>
+                    <th>Sales incl. moms</th>
+                    <th>Moms</th>
+                    <th>Cost ex. moms</th>
+                    <th>Profit ex. moms</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -521,7 +525,7 @@ function App() {
                       <tr key={product.id}>
                         <td>
                           <strong>{product.name}</strong>
-                          <span className="subtle">{product.sellingPrice} kr.</span>
+                          <span className="subtle">{product.sellingPrice} kr. {data.settings.salesPricesIncludeVat ? 'incl.' : 'ex.'} moms</span>
                         </td>
                         <td>
                           <input
@@ -532,7 +536,8 @@ function App() {
                           />
                         </td>
                         <td>{formatKr(line?.revenue ?? 0)}</td>
-                        <td>{formatKr(line?.productCost ?? 0)}</td>
+                        <td>{formatKr(line?.outputVat ?? 0)}</td>
+                        <td>{formatKr(line?.netProductCost ?? 0)}</td>
                         <td className={(line?.grossProfit ?? 0) >= 0 ? 'positive' : 'negative'}>{formatKr(line?.grossProfit ?? 0)}</td>
                       </tr>
                     )
@@ -612,11 +617,43 @@ function App() {
 
         {activeTab === 'pricing' && (
           <Screen title="Product Pricing" kicker="Selling prices are seeded from your real menu">
-            <Panel title="Guf Bucket Settings" icon={<Settings size={18} />}>
+            <Panel title="VAT and Guf Settings" icon={<Settings size={18} />}>
               <div className="settings-grid">
+                <label className="inline-check setting-check">
+                  <input
+                    type="checkbox"
+                    checked={data.settings.vatRegistered}
+                    onChange={(event) => updateSettings({ vatRegistered: event.target.checked })}
+                  />
+                  VAT/moms registered
+                </label>
                 <label>
                   Moms %
                   <input type="number" min="0" value={data.settings.vatRate} onChange={(event) => updateSettings({ vatRate: numberValue(event.target.value) })} />
+                </label>
+                <label className="inline-check setting-check">
+                  <input
+                    type="checkbox"
+                    checked={data.settings.salesPricesIncludeVat}
+                    onChange={(event) => updateSettings({ salesPricesIncludeVat: event.target.checked })}
+                  />
+                  Sales prices include moms
+                </label>
+                <label className="inline-check setting-check">
+                  <input
+                    type="checkbox"
+                    checked={data.settings.productCostsIncludeVat}
+                    onChange={(event) => updateSettings({ productCostsIncludeVat: event.target.checked })}
+                  />
+                  Product costs include moms
+                </label>
+                <label className="inline-check setting-check">
+                  <input
+                    type="checkbox"
+                    checked={data.settings.expensesIncludeVat}
+                    onChange={(event) => updateSettings({ expensesIncludeVat: event.target.checked })}
+                  />
+                  Expenses include moms
                 </label>
                 <label>
                   Guf bucket price ex. moms
@@ -651,18 +688,21 @@ function App() {
                     <th>Product</th>
                     <th>Category</th>
                     <th>Portion</th>
-                    <th>Cost/unit</th>
-                    <th>Price</th>
-                    <th>Profit</th>
-                    <th>Margin</th>
+                    <th>Cost/unit entered</th>
+                    <th>Price entered</th>
+                    <th>Price ex. moms</th>
+                    <th>Profit ex. moms</th>
+                    <th>Margin ex. moms</th>
                     <th>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.products.map((product) => {
                     const cost = getProductCost(product, data.settings)
-                    const profit = product.sellingPrice - cost
-                    const margin = product.sellingPrice ? profit / product.sellingPrice : 0
+                    const sale = splitVat(product.sellingPrice, data.settings.salesPricesIncludeVat, data.settings)
+                    const costSplit = splitVat(cost, data.settings.productCostsIncludeVat, data.settings)
+                    const profit = sale.net - costSplit.net
+                    const margin = sale.net ? profit / sale.net : 0
                     return (
                       <tr key={product.id}>
                         <td>
@@ -708,6 +748,7 @@ function App() {
                             onChange={(event) => updateProduct(product.id, { sellingPrice: numberValue(event.target.value) })}
                           />
                         </td>
+                        <td>{formatKr(sale.net)}</td>
                         <td className={profit >= 0 ? 'positive' : 'negative'}>{formatKr(profit)}</td>
                         <td>{formatNumber(margin * 100, 1)}%</td>
                         <td>
@@ -739,14 +780,19 @@ function App() {
                     <th>Date</th>
                     <th>Type</th>
                     <th>Description</th>
-                    <th>Amount</th>
+                    <th>Amount entered</th>
+                    <th>Amount incl. moms</th>
+                    <th>Amount ex. moms</th>
+                    <th>Moms</th>
                     <th>Payment</th>
                     <th>Notes</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.expenses.map((expense) => (
+                  {data.expenses.map((expense) => {
+                    const expenseVat = splitVat(expense.amount, data.settings.expensesIncludeVat, data.settings)
+                    return (
                     <tr key={expense.id}>
                       <td>
                         <input type="date" value={expense.date} onChange={(event) => updateExpense(expense.id, { date: event.target.value })} />
@@ -764,6 +810,9 @@ function App() {
                       <td>
                         <input type="number" min="0" value={expense.amount} onChange={(event) => updateExpense(expense.id, { amount: numberValue(event.target.value) })} />
                       </td>
+                      <td>{formatKr(expenseVat.gross)}</td>
+                      <td>{formatKr(expenseVat.net)}</td>
+                      <td>{formatKr(expenseVat.vat)}</td>
                       <td>
                         <select value={expense.paymentMethod} onChange={(event) => updateExpense(expense.id, { paymentMethod: event.target.value as PaymentMethod })}>
                           {paymentMethods.map((method) => (
@@ -780,7 +829,7 @@ function App() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -914,11 +963,13 @@ function App() {
               </button>
             </div>
             <div className="metrics-grid">
-              <Metric label="Total revenue" value={formatKr(monthSummary.totalRevenue, 0)} />
-              <Metric label="Product cost" value={formatKr(monthSummary.totalProductCost, 0)} />
-              <Metric label="Expenses" value={formatKr(monthSummary.expenses, 0)} tone={monthSummary.expenses > 0 ? 'warn' : 'neutral'} />
-              <Metric label="Gross profit" value={formatKr(monthSummary.grossProfit, 0)} tone="good" />
-              <Metric label="Net profit" value={formatKr(monthSummary.netProfit, 0)} tone={monthSummary.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Sales incl. moms" value={formatKr(monthSummary.totalRevenue, 0)} />
+              <Metric label="Sales ex. moms" value={formatKr(monthSummary.netRevenue, 0)} />
+              <Metric label="Product cost ex. moms" value={formatKr(monthSummary.netProductCost, 0)} />
+              <Metric label="Expenses ex. moms" value={formatKr(monthSummary.netExpenses, 0)} tone={monthSummary.netExpenses > 0 ? 'warn' : 'neutral'} />
+              <Metric label="Gross profit ex. moms" value={formatKr(monthSummary.grossProfit, 0)} tone="good" />
+              <Metric label="Net profit ex. moms" value={formatKr(monthSummary.netProfit, 0)} tone={monthSummary.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Moms payable" value={formatKr(monthSummary.vatPayable, 0)} tone="warn" />
               <Metric label="Best-selling product" value={monthSummary.bestSellingProduct} />
               <Metric label="Items sold" value={formatNumber(monthSummary.totalItems, 0)} />
               <Metric label="Average margin" value={`${formatNumber(monthSummary.averageProfitMargin * 100, 1)}%`} />
@@ -1115,23 +1166,43 @@ function Totals({ totals }: { totals: ReturnType<typeof calculateReportTotals> }
   return (
     <div className="totals-list">
       <div>
-        <span>Total revenue</span>
+        <span>Total revenue incl. moms</span>
         <strong>{formatKr(totals.totalRevenue)}</strong>
       </div>
       <div>
-        <span>Product cost</span>
+        <span>Revenue ex. moms</span>
+        <strong>{formatKr(totals.netRevenue)}</strong>
+      </div>
+      <div>
+        <span>Sales moms</span>
+        <strong>{formatKr(totals.outputVat)}</strong>
+      </div>
+      <div>
+        <span>Product cost ex. moms</span>
+        <strong>{formatKr(totals.netProductCost)}</strong>
+      </div>
+      <div>
+        <span>Product cost incl. moms</span>
         <strong>{formatKr(totals.totalProductCost)}</strong>
       </div>
       <div>
-        <span>Gross profit</span>
+        <span>Gross profit ex. moms</span>
         <strong>{formatKr(totals.grossProfit)}</strong>
       </div>
       <div>
-        <span>Expenses</span>
+        <span>Expenses ex. moms</span>
+        <strong>{formatKr(totals.netExpenses)}</strong>
+      </div>
+      <div>
+        <span>Expenses incl. moms</span>
         <strong>{formatKr(totals.expenses)}</strong>
       </div>
       <div>
-        <span>Net profit</span>
+        <span>Moms payable</span>
+        <strong className={totals.vatPayable >= 0 ? 'negative' : 'positive'}>{formatKr(totals.vatPayable)}</strong>
+      </div>
+      <div>
+        <span>Net profit ex. moms</span>
         <strong className={totals.netProfit >= 0 ? 'positive' : 'negative'}>{formatKr(totals.netProfit)}</strong>
       </div>
     </div>

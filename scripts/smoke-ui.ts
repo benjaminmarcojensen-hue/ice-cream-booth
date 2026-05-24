@@ -12,6 +12,7 @@ await page.locator('input[type="date"]').fill('2026-05-23')
 await page.getByText('Total revenue').waitFor()
 const text = async () => ((await page.textContent('body')) ?? '').replace(/\s+/g, ' ')
 assert((await text()).includes('4.060,00 kr.'), 'Seeded 23/05/2026 revenue should show 4.060,00 kr.')
+assert((await text()).includes('812,00 kr.'), 'Seeded 23/05/2026 sales VAT should show 812,00 kr.')
 
 const drysRow = page.locator('tr').filter({ hasText: 'Drys' })
 await drysRow.locator('input[type="number"]').first().fill('4')

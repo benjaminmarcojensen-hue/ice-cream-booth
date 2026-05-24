@@ -6,12 +6,24 @@ const CLOUD_CONFIG_KEY = 'ice-cream-booth-cloud-config-v1'
 
 export const cloneSeedData = (): AppData => JSON.parse(JSON.stringify(seedData)) as AppData
 
+export const normalizeData = (data: Partial<AppData>): AppData => {
+  const seed = cloneSeedData()
+  return {
+    ...seed,
+    ...data,
+    settings: {
+      ...seed.settings,
+      ...(data.settings ?? {}),
+    },
+  }
+}
+
 export const loadData = (): AppData => {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (!stored) return cloneSeedData()
 
   try {
-    return { ...cloneSeedData(), ...(JSON.parse(stored) as AppData) }
+    return normalizeData(JSON.parse(stored) as AppData)
   } catch {
     return cloneSeedData()
   }

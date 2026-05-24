@@ -1,5 +1,5 @@
 import { strToU8, zipSync } from 'fflate'
-import { calculateMonthlySummary, calculateReportTotals, calculateStock, formatKr, getProductCost } from './calculations'
+import { calculateMonthlySummary, calculateReportTotals, calculateStock, formatKr, getProductCost, splitVat } from './calculations'
 import type { AppData, MonthlySummary } from './types'
 
 const escapeCsv = (value: unknown) => {
@@ -34,11 +34,18 @@ export const dailyReportsRows = (data: AppData) =>
       date: report.date,
       product: line.product.name,
       quantity: line.quantity,
-      revenue: line.revenue,
-      productCost: line.productCost,
-      grossProfit: line.grossProfit,
-      reportRevenue: totals.totalRevenue,
-      reportNetProfit: totals.netProfit,
+      salesInclVat: line.revenue,
+      salesExVat: line.netRevenue,
+      outputVat: line.outputVat,
+      productCostInclVat: line.productCost,
+      productCostExVat: line.netProductCost,
+      inputVatProductCost: line.inputVat,
+      grossProfitExVat: line.grossProfit,
+      reportSalesInclVat: totals.totalRevenue,
+      reportSalesExVat: totals.netRevenue,
+      reportOutputVat: totals.outputVat,
+      reportVatPayable: totals.vatPayable,
+      reportNetProfitExVat: totals.netProfit,
       notes: report.notes,
     }))
   })
@@ -46,28 +53,42 @@ export const dailyReportsRows = (data: AppData) =>
 export const pricingRows = (data: AppData) =>
   data.products.map((product) => {
     const cost = getProductCost(product, data.settings)
-    const profit = product.sellingPrice - cost
+    const sale = splitVat(product.sellingPrice, data.settings.salesPricesIncludeVat, data.settings)
+    const costSplit = splitVat(cost, data.settings.productCostsIncludeVat, data.settings)
+    const profit = sale.net - costSplit.net
     return {
       product: product.name,
       category: product.category,
       portionSize: product.portionSize,
-      costPerUnit: cost,
-      sellingPrice: product.sellingPrice,
-      profitPerSale: profit,
-      profitMargin: product.sellingPrice ? profit / product.sellingPrice : 0,
+      costEntered: cost,
+      costInclVat: costSplit.gross,
+      costExVat: costSplit.net,
+      inputVat: costSplit.vat,
+      sellingPriceEntered: product.sellingPrice,
+      sellingPriceInclVat: sale.gross,
+      sellingPriceExVat: sale.net,
+      outputVat: sale.vat,
+      profitPerSaleExVat: profit,
+      profitMarginExVat: sale.net ? profit / sale.net : 0,
       notes: product.notes,
     }
   })
 
 export const expensesRows = (data: AppData) =>
-  data.expenses.map((expense) => ({
-    date: expense.date,
-    type: expense.type,
-    description: expense.description,
-    amount: expense.amount,
-    paymentMethod: expense.paymentMethod,
-    notes: expense.notes,
-  }))
+  data.expenses.map((expense) => {
+    const split = splitVat(expense.amount, data.settings.expensesIncludeVat, data.settings)
+    return {
+      date: expense.date,
+      type: expense.type,
+      description: expense.description,
+      amountEntered: expense.amount,
+      amountInclVat: split.gross,
+      amountExVat: split.net,
+      inputVat: split.vat,
+      paymentMethod: expense.paymentMethod,
+      notes: expense.notes,
+    }
+  })
 
 export const stockRows = (data: AppData) =>
   data.stockItems.map((item) => {
@@ -86,14 +107,21 @@ export const stockRows = (data: AppData) =>
   })
 
 export const monthlySummaryRows = (summary: MonthlySummary) => [
-  { metric: 'Total revenue', value: summary.totalRevenue, formatted: formatKr(summary.totalRevenue) },
-  { metric: 'Total product cost', value: summary.totalProductCost, formatted: formatKr(summary.totalProductCost) },
-  { metric: 'Total expenses', value: summary.expenses, formatted: formatKr(summary.expenses) },
-  { metric: 'Gross profit', value: summary.grossProfit, formatted: formatKr(summary.grossProfit) },
-  { metric: 'Net profit', value: summary.netProfit, formatted: formatKr(summary.netProfit) },
+  { metric: 'Sales incl. moms', value: summary.totalRevenue, formatted: formatKr(summary.totalRevenue) },
+  { metric: 'Sales ex. moms', value: summary.netRevenue, formatted: formatKr(summary.netRevenue) },
+  { metric: 'Sales moms', value: summary.outputVat, formatted: formatKr(summary.outputVat) },
+  { metric: 'Product cost incl. moms', value: summary.totalProductCost, formatted: formatKr(summary.totalProductCost) },
+  { metric: 'Product cost ex. moms', value: summary.netProductCost, formatted: formatKr(summary.netProductCost) },
+  { metric: 'Product cost moms', value: summary.inputVatProductCosts, formatted: formatKr(summary.inputVatProductCosts) },
+  { metric: 'Expenses incl. moms', value: summary.expenses, formatted: formatKr(summary.expenses) },
+  { metric: 'Expenses ex. moms', value: summary.netExpenses, formatted: formatKr(summary.netExpenses) },
+  { metric: 'Expense moms', value: summary.inputVatExpenses, formatted: formatKr(summary.inputVatExpenses) },
+  { metric: 'Moms payable', value: summary.vatPayable, formatted: formatKr(summary.vatPayable) },
+  { metric: 'Gross profit ex. moms', value: summary.grossProfit, formatted: formatKr(summary.grossProfit) },
+  { metric: 'Net profit ex. moms', value: summary.netProfit, formatted: formatKr(summary.netProfit) },
   { metric: 'Best-selling product', value: summary.bestSellingProduct, formatted: summary.bestSellingProduct },
   { metric: 'Total items sold', value: summary.totalItems, formatted: summary.totalItems },
-  { metric: 'Average profit margin', value: summary.averageProfitMargin, formatted: `${Math.round(summary.averageProfitMargin * 100)}%` },
+  { metric: 'Average profit margin ex. moms', value: summary.averageProfitMargin, formatted: `${Math.round(summary.averageProfitMargin * 100)}%` },
 ]
 
 export const downloadWorkbook = (data: AppData, selectedMonth: string) => {

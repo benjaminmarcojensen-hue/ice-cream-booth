@@ -23,7 +23,7 @@ Open the local URL shown in the terminal, usually `http://127.0.0.1:5173`.
 3. Enter quantities for each menu item.
 4. Optionally add flavor breakdowns for `1 Kugle`, `2 Kugler`, and `3 Kugler`.
 5. Add any expenses for the day.
-6. Check the live revenue, product cost, gross profit, expenses, and net profit.
+6. Check the live sales, moms/VAT, product cost, gross profit, expenses, and net profit.
 7. Press **Save report**.
 
 The seeded example report for `23/05/2026` contains:
@@ -33,7 +33,7 @@ The seeded example report for `23/05/2026` contains:
 - `2 Kugler`: 44
 - `3 Kugler`: 1
 
-That report calculates to `4.060 kr.` revenue.
+That report calculates to `4.060 kr.` sales incl. moms, `3.248 kr.` sales ex. moms, and `812 kr.` sales moms.
 
 ## Add Stock Items
 
@@ -95,9 +95,19 @@ Data is stored locally in your browser using `localStorage`.
 - To reset the app to seed data, use **Export → Reset local data**.
 - Resetting only affects the browser you are using.
 
-## Product Costs And Guf
+## Moms/VAT, Product Costs, And Guf
 
-Open **Product Pricing** to edit selling prices and costs. Guf cost is calculated automatically:
+Open **Product Pricing** to edit selling prices, costs, and VAT/moms settings.
+
+The default setup follows normal Danish VAT handling for a moms-registered booth:
+
+- Moms rate is `25%`.
+- Sales prices are entered incl. moms because that is what customers pay at the booth.
+- Product costs and expenses are entered incl. moms by default.
+- Profit is calculated ex. moms because moms is collected for, or reclaimed from, Skattestyrelsen.
+- Moms payable is calculated as sales moms minus deductible moms on product costs and expenses.
+
+Guf cost is calculated automatically:
 
 ```text
 cost per guf portion = guf bucket price including moms / portions per bucket

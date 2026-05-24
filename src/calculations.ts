@@ -31,11 +31,32 @@ export const monthKey = (date: string) => date.slice(0, 7)
 export const getGufBucketPriceInclVat = (settings: Settings) =>
   settings.gufBucketPriceExVat * (1 + settings.vatRate / 100)
 
+const getVatRate = (settings: Settings) => (settings.vatRegistered ? Math.max(0, settings.vatRate) : 0)
+
+export const splitVat = (amount: number, includesVat: boolean, settings: Settings) => {
+  const rate = getVatRate(settings)
+  const safeAmount = Number.isFinite(amount) ? amount : 0
+
+  if (rate <= 0) {
+    return { gross: safeAmount, net: safeAmount, vat: 0 }
+  }
+
+  if (includesVat) {
+    // With Danish 25% moms, the VAT part of a gross amount is gross * 25 / 125.
+    const vat = safeAmount * (rate / (100 + rate))
+    return { gross: safeAmount, net: safeAmount - vat, vat }
+  }
+
+  const vat = safeAmount * (rate / 100)
+  return { gross: safeAmount + vat, net: safeAmount, vat }
+}
+
 export const getProductCost = (product: Product, settings: Settings) => {
   if (product.costSource === 'gufSetting' && !product.manualCostOverride) {
     const portions = Math.max(1, settings.gufPortionsPerBucket)
-    // Cost per guf portion = bucket price including moms divided by portions per bucket.
-    return getGufBucketPriceInclVat(settings) / portions
+    // Cost per guf portion follows the selected cost basis: incl. moms or ex. moms.
+    const bucketPrice = settings.productCostsIncludeVat ? getGufBucketPriceInclVat(settings) : settings.gufBucketPriceExVat
+    return bucketPrice / portions
   }
 
   return product.costPerUnit
@@ -56,24 +77,57 @@ export const calculateReportTotals = (
       if (!product) return null
 
       const quantity = Math.max(0, item.quantity || 0)
-      const revenue = quantity * product.sellingPrice
-      const productCost = quantity * getProductCost(product, settings)
-      // Gross profit is revenue minus the direct cost of sold products.
-      const grossProfit = revenue - productCost
+      const sale = splitVat(quantity * product.sellingPrice, settings.salesPricesIncludeVat, settings)
+      const cost = splitVat(quantity * getProductCost(product, settings), settings.productCostsIncludeVat, settings)
+      // Profit excludes moms because VAT is collected for or reclaimed from Skattestyrelsen.
+      const grossProfit = sale.net - cost.net
 
-      return { product, quantity, revenue, productCost, grossProfit }
+      return {
+        product,
+        quantity,
+        revenue: sale.gross,
+        netRevenue: sale.net,
+        outputVat: sale.vat,
+        productCost: cost.gross,
+        netProductCost: cost.net,
+        inputVat: cost.vat,
+        grossProfit,
+      }
     })
     .filter((line): line is NonNullable<typeof line> => Boolean(line))
 
   const totalRevenue = lines.reduce((sum, line) => sum + line.revenue, 0)
+  const netRevenue = lines.reduce((sum, line) => sum + line.netRevenue, 0)
+  const outputVat = lines.reduce((sum, line) => sum + line.outputVat, 0)
   const totalProductCost = lines.reduce((sum, line) => sum + line.productCost, 0)
-  const grossProfit = totalRevenue - totalProductCost
-  const expenseTotal = getReportExpenses(report, expenses).reduce((sum, expense) => sum + expense.amount, 0)
-  // Net profit is gross profit minus the day's non-product expenses.
-  const netProfit = grossProfit - expenseTotal
+  const netProductCost = lines.reduce((sum, line) => sum + line.netProductCost, 0)
+  const inputVatProductCosts = lines.reduce((sum, line) => sum + line.inputVat, 0)
+  const grossProfit = netRevenue - netProductCost
+  const expenseSplits = getReportExpenses(report, expenses).map((expense) => splitVat(expense.amount, settings.expensesIncludeVat, settings))
+  const expenseTotal = expenseSplits.reduce((sum, expense) => sum + expense.gross, 0)
+  const netExpenses = expenseSplits.reduce((sum, expense) => sum + expense.net, 0)
+  const inputVatExpenses = expenseSplits.reduce((sum, expense) => sum + expense.vat, 0)
+  // Net profit excludes VAT on sales and deductible VAT on purchases/expenses.
+  const netProfit = grossProfit - netExpenses
+  const vatPayable = outputVat - inputVatProductCosts - inputVatExpenses
   const totalItems = lines.reduce((sum, line) => sum + line.quantity, 0)
 
-  return { lines, totalRevenue, totalProductCost, grossProfit, expenses: expenseTotal, netProfit, totalItems }
+  return {
+    lines,
+    totalRevenue,
+    netRevenue,
+    outputVat,
+    totalProductCost,
+    netProductCost,
+    inputVatProductCosts,
+    grossProfit,
+    expenses: expenseTotal,
+    netExpenses,
+    inputVatExpenses,
+    vatPayable,
+    netProfit,
+    totalItems,
+  }
 }
 
 export const calculateMonthlySummary = (data: AppData, selectedMonth: string): MonthlySummary => {
@@ -83,9 +137,16 @@ export const calculateMonthlySummary = (data: AppData, selectedMonth: string): M
     (summary, report) => {
       const reportTotals = calculateReportTotals(report, data.products, data.expenses, data.settings)
       summary.totalRevenue += reportTotals.totalRevenue
+      summary.netRevenue += reportTotals.netRevenue
+      summary.outputVat += reportTotals.outputVat
       summary.totalProductCost += reportTotals.totalProductCost
+      summary.netProductCost += reportTotals.netProductCost
+      summary.inputVatProductCosts += reportTotals.inputVatProductCosts
       summary.grossProfit += reportTotals.grossProfit
       summary.expenses += reportTotals.expenses
+      summary.netExpenses += reportTotals.netExpenses
+      summary.inputVatExpenses += reportTotals.inputVatExpenses
+      summary.vatPayable += reportTotals.vatPayable
       summary.netProfit += reportTotals.netProfit
       summary.totalItems += reportTotals.totalItems
       summary.lines.push(...reportTotals.lines)
@@ -104,7 +165,7 @@ export const calculateMonthlySummary = (data: AppData, selectedMonth: string): M
 
   const productBreakdown = [...productMap.values()].sort((a, b) => b.quantity - a.quantity)
   const bestSellingProduct = productBreakdown[0]?.product ?? 'No sales yet'
-  const averageProfitMargin = totals.totalRevenue > 0 ? totals.grossProfit / totals.totalRevenue : 0
+  const averageProfitMargin = totals.netRevenue > 0 ? totals.grossProfit / totals.netRevenue : 0
 
   const dailyRevenue = reports
     .map((report) => ({
