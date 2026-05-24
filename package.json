@@ -1,0 +1,30 @@
+{
+  "name": "icecreambooth",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/build.mjs && node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/check.mjs",
+    "preview": "node scripts/serve.mjs",
+    "test:logic": "tsx scripts/verify.ts",
+    "test:ui": "tsx scripts/smoke-ui.ts"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "esbuild": "^0.28.0",
+    "playwright": "^1.60.0",
+    "tsx": "^4.22.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.14"
+  }
+}

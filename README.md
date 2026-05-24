@@ -1,0 +1,115 @@
+# Ice Cream Booth Reporting App
+
+A beginner-friendly local web app for daily ice cream booth reports. It tracks sales, costs, expenses, profit, stock alerts, monthly summaries, and backups for Google Sheets or Excel.
+
+## Install
+
+```bash
+npm install
+```
+
+## Run Locally
+
+```bash
+npm run dev
+```
+
+Open the local URL shown in the terminal, usually `http://127.0.0.1:5173`.
+
+## Add A Daily Report
+
+1. Open **Daily Report**.
+2. Pick the report date.
+3. Enter quantities for each menu item.
+4. Optionally add flavor breakdowns for `1 Kugle`, `2 Kugler`, and `3 Kugler`.
+5. Add any expenses for the day.
+6. Check the live revenue, product cost, gross profit, expenses, and net profit.
+7. Press **Save report**.
+
+The seeded example report for `23/05/2026` contains:
+
+- `Drys`: 3
+- `1 Kugle`: 48
+- `2 Kugler`: 44
+- `3 Kugler`: 1
+
+That report calculates to `4.060 kr.` revenue.
+
+## Add Stock Items
+
+Open **Stock**.
+
+- Use **Add stock item** for any ingredient, packaging item, cleaning supply, or other stock row.
+- Use **Add ice cream tub** to quickly create a separate tub row for a selected flavor.
+- Edit unit, starting stock, added stock, manual used stock, minimum stock level, notes, and linked product.
+- If a row is linked to a product, sales of that product are included in used stock.
+- For ice cream tubs, leave linked product as **Manual** and update **Manual used** when tubs are finished.
+
+## Import A Text Report
+
+Open **Import Report** and paste a line such as:
+
+```text
+24/05: Alm. Softice 12, 1 Kugle 8, 2 Kugler 5, Guf 4, Drys 3, expenses 250 kr ice cream purchase
+```
+
+Press **Parse report**. The app shows a draft first, then you can open it in **Daily Report** and correct anything before saving.
+
+## Export Data
+
+Open **Export** and choose:
+
+- Daily reports CSV
+- Product pricing CSV
+- Expenses CSV
+- Stock CSV
+- Monthly summary CSV
+- Full backup JSON
+- Workbook XLSX
+
+CSV files can be imported into Google Sheets. The JSON backup is the best full-app backup.
+
+## Shared Data With Supabase
+
+The app can sync one shared data file through Supabase, so you and a partner can use the same reports.
+
+1. Create a free project at Supabase.
+2. Open Supabase **SQL Editor**.
+3. Copy and run the contents of `supabase-setup.sql`.
+4. In Supabase, copy your **Project URL** and **anon public key** from **Project Settings → API**.
+5. Open the app, go to **Export → Shared Supabase Sync**.
+6. Paste the URL and anon key.
+7. Click **Test connection**.
+8. Click **Push this browser to cloud** to seed Supabase with your current app data.
+9. Turn on **Enable shared cloud sync**.
+
+On your partner's browser, repeat steps 5-7, turn on cloud sync, then click **Load from cloud**.
+
+This simple setup has no login. Anyone with the app URL and anon key can edit the shared data, so use it for trusted people only.
+
+## Reset Or Backup Data
+
+Data is stored locally in your browser using `localStorage`.
+
+- To back up everything, use **Export → Full backup JSON**.
+- To reset the app to seed data, use **Export → Reset local data**.
+- Resetting only affects the browser you are using.
+
+## Product Costs And Guf
+
+Open **Product Pricing** to edit selling prices and costs. Guf cost is calculated automatically:
+
+```text
+cost per guf portion = guf bucket price including moms / portions per bucket
+```
+
+The default bucket price is `639,66 kr.` excluding moms, with Danish moms set to `25%`.
+
+## Checks
+
+```bash
+npm run lint
+npm run test:logic
+npm run test:ui
+npm run build
+```
