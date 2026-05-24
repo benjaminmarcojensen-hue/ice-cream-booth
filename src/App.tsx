@@ -586,12 +586,19 @@ function App() {
                         value={expense.description}
                         onChange={(event) => updateDraftExpense(expense.id, { description: event.target.value })}
                       />
-                      <input
-                        min="0"
-                        type="number"
-                        value={expense.amount}
-                        onChange={(event) => updateDraftExpense(expense.id, { amount: numberValue(event.target.value) })}
-                      />
+                      <div className="money-input">
+                        <input
+                          aria-label="Expense amount in DKK"
+                          inputMode="decimal"
+                          min="0"
+                          placeholder="0,00"
+                          step="0.01"
+                          type="number"
+                          value={expense.amount}
+                          onChange={(event) => updateDraftExpense(expense.id, { amount: numberValue(event.target.value) })}
+                        />
+                        <span>kr.</span>
+                      </div>
                       <button type="button" onClick={() => setDraftExpenses((current) => current.filter((entry) => entry.id !== expense.id))}>
                         Remove
                       </button>
@@ -780,7 +787,7 @@ function App() {
                     <th>Date</th>
                     <th>Type</th>
                     <th>Description</th>
-                    <th>Amount entered</th>
+                    <th>Amount (DKK)</th>
                     <th>Amount incl. moms</th>
                     <th>Amount ex. moms</th>
                     <th>Moms</th>
@@ -808,7 +815,19 @@ function App() {
                         <input value={expense.description} onChange={(event) => updateExpense(expense.id, { description: event.target.value })} />
                       </td>
                       <td>
-                        <input type="number" min="0" value={expense.amount} onChange={(event) => updateExpense(expense.id, { amount: numberValue(event.target.value) })} />
+                        <div className="money-input">
+                          <input
+                            aria-label="Expense amount in DKK"
+                            inputMode="decimal"
+                            min="0"
+                            placeholder="0,00"
+                            step="0.01"
+                            type="number"
+                            value={expense.amount}
+                            onChange={(event) => updateExpense(expense.id, { amount: numberValue(event.target.value) })}
+                          />
+                          <span>kr.</span>
+                        </div>
                       </td>
                       <td>{formatKr(expenseVat.gross)}</td>
                       <td>{formatKr(expenseVat.net)}</td>

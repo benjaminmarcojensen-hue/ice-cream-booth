@@ -413,8 +413,28 @@ td .subtle {
 
 .expense-editor {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr) 120px auto;
+  grid-template-columns: 180px minmax(0, 1fr) 150px auto;
   gap: 8px;
+}
+
+.money-input {
+  position: relative;
+  min-width: 130px;
+}
+
+.money-input input {
+  padding-right: 38px;
+}
+
+.money-input span {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  pointer-events: none;
 }
 
 .notes-field {
