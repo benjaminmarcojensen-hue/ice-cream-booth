@@ -330,6 +330,27 @@ td:first-child {
   min-width: 190px;
 }
 
+.stock-table-wrap .action-column {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 108px;
+  background: #ffffff;
+  box-shadow: 1px 0 0 var(--line);
+}
+
+.stock-table-wrap th.action-column {
+  z-index: 3;
+  background: #fff7e8;
+}
+
+.remove-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border-color: #f6b8b8;
+  color: #9f1d1d;
+}
+
 td strong,
 td .subtle {
   display: block;

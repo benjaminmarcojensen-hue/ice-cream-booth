@@ -21,8 +21,16 @@ assert((await text()).includes('4.067,00 kr.'), 'Changing Drys quantity should u
 await page.getByRole('button', { name: 'Stock' }).click()
 assert((await page.textContent('body'))?.includes('Order soon'), 'Low stock should show Order soon')
 await page.getByRole('button', { name: 'Add ice cream tub' }).click()
-const stockNames = await page.locator('tbody tr td:first-child input').evaluateAll((nodes) => nodes.map((node) => (node as HTMLInputElement).value))
+const stockNames = await page
+  .locator('tbody tr')
+  .evaluateAll((rows) => rows.map((row) => (row.querySelector('td:nth-child(2) input') as HTMLInputElement | null)?.value).filter(Boolean))
 assert(stockNames.includes('Vanilje ice cream tub'), 'Stock should allow adding ice cream tub variations')
+page.once('dialog', async (dialog) => {
+  assert(dialog.message().includes('Vanilje ice cream tub'), 'Stock removal confirmation should name the item')
+  await dialog.accept()
+})
+await page.getByRole('button', { name: 'Remove' }).first().click()
+assert(!(await page.textContent('body'))?.includes('Vanilje ice cream tub'), 'Stock rows should be removable')
 
 await page.getByRole('button', { name: 'Export' }).click()
 const csvDownload = page.waitForEvent('download')

@@ -408,6 +408,12 @@ function App() {
     })
   }
 
+  const removeStockItem = (item: StockItem) => {
+    if (confirm(`Remove stock item “${item.name}”?`)) {
+      setData((current) => ({ ...current, stockItems: current.stockItems.filter((entry) => entry.id !== item.id) }))
+    }
+  }
+
   const loadDraftForDate = (date: string, sourceData = data) => {
     const existing = sourceData.dailyReports.find((report) => report.date === date)
     const report = existing ?? emptyReportForDate(date, sourceData.products)
@@ -878,10 +884,11 @@ function App() {
               </div>
               <p className="muted">Use separate stock rows for each tub flavor, cone type, topping, packaging item, or cleaning supply.</p>
             </Panel>
-            <div className="table-wrap">
+            <div className="table-wrap stock-table-wrap">
               <table>
                 <thead>
                   <tr>
+                    <th className="action-column">Action</th>
                     <th>Product / ingredient</th>
                     <th>Unit</th>
                     <th>Starting</th>
@@ -893,7 +900,6 @@ function App() {
                     <th>Alert</th>
                     <th>Linked product</th>
                     <th>Notes</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -901,6 +907,11 @@ function App() {
                     const stock = calculateStock(item, data.dailyReports)
                     return (
                       <tr key={item.id}>
+                        <td className="action-column">
+                          <button className="remove-button" type="button" onClick={() => removeStockItem(item)}>
+                            Remove
+                          </button>
+                        </td>
                         <td>
                           <input value={item.name} onChange={(event) => updateStock(item.id, { name: event.target.value })} />
                         </td>
@@ -947,18 +958,6 @@ function App() {
                         </td>
                         <td>
                           <input value={item.notes} onChange={(event) => updateStock(item.id, { notes: event.target.value })} />
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm(`Delete stock item “${item.name}”?`)) {
-                                setData((current) => ({ ...current, stockItems: current.stockItems.filter((entry) => entry.id !== item.id) }))
-                              }
-                            }}
-                          >
-                            Delete
-                          </button>
                         </td>
                       </tr>
                     )
