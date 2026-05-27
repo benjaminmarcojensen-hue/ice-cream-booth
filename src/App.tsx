@@ -6,12 +6,14 @@ import {
   calculateMonthlySummary,
   calculateReportTotals,
   calculateStock,
+  countDaysInclusive,
   formatKr,
   formatNumber,
   getGufBucketPriceInclVat,
   getLowStockItems,
   getMonthRange,
   getProductCost,
+  getReportStreak,
   getWeekRange,
   monthKey,
   splitVat,
@@ -241,6 +243,8 @@ const recurringExpenseDate = (month: string, dayOfMonth: number) => {
   return `${month}-${day}`
 }
 
+const achievementUnlocked = (condition: boolean) => (condition ? 'unlocked' : 'locked')
+
 function App() {
   const [data, setData] = useState<AppData>(() => loadData())
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => loadCloudConfig())
@@ -334,11 +338,23 @@ function App() {
     () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
     [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
   )
+  const lowStockItems = getLowStockItems(data)
+  const shopQuest = useMemo(() => {
+    const periodGoal = data.settings.dailyRevenueGoal * countDaysInclusive(dashboardRange.start, dashboardRange.end)
+    const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
+    return {
+      periodGoal,
+      goalProgress,
+      reportStreak: getReportStreak(data.dailyReports),
+      scoopScore: Math.max(0, Math.round(dashboardSummary.netProfit / 10 + dashboardSummary.totalItems)),
+      completedReports: data.dailyReports.filter((report) => report.items.some((item) => item.quantity > 0)).length,
+      hasLowStock: lowStockItems.length > 0,
+    }
+  }, [dashboardRange.end, dashboardRange.start, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, lowStockItems.length])
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
   )
-  const lowStockItems = getLowStockItems(data)
 
   const updateProduct = (productId: string, patch: Partial<Product>) => {
     setData((current) => ({
@@ -593,6 +609,37 @@ function App() {
               <Metric label="Best seller" value={dashboardSummary.bestSellingProduct} />
             </div>
 
+            <Panel title="Shop Quest" icon={<IceCreamBowl size={18} />}>
+              <div className="quest-grid">
+                <div className="quest-card">
+                  <span>Goal progress</span>
+                  <strong>
+                    {formatKr(dashboardSummary.totalRevenue, 0)} / {formatKr(shopQuest.periodGoal, 0)}
+                  </strong>
+                  <div className="quest-progress" aria-label="Sales goal progress">
+                    <i style={{ width: `${Math.round(shopQuest.goalProgress * 100)}%` }} />
+                  </div>
+                </div>
+                <div className="quest-card">
+                  <span>Report streak</span>
+                  <strong>{formatNumber(shopQuest.reportStreak, 0)} day(s)</strong>
+                  <small>Consecutive days with saved sales reports.</small>
+                </div>
+                <div className="quest-card">
+                  <span>Scoop score</span>
+                  <strong>{formatNumber(shopQuest.scoopScore, 0)}</strong>
+                  <small>Profit and items sold turned into a friendly score.</small>
+                </div>
+              </div>
+              <div className="badge-row">
+                <span className={`achievement ${achievementUnlocked(shopQuest.completedReports > 0)}`}>First report</span>
+                <span className={`achievement ${achievementUnlocked(shopQuest.goalProgress >= 1)}`}>Goal hit</span>
+                <span className={`achievement ${achievementUnlocked(shopQuest.reportStreak >= 3)}`}>3 day streak</span>
+                <span className={`achievement ${achievementUnlocked(dashboardSummary.netProfit > 0)}`}>Profit day</span>
+                <span className={`achievement ${achievementUnlocked(!shopQuest.hasLowStock)}`}>Stock calm</span>
+              </div>
+            </Panel>
+
             <div className="two-column">
               <Panel title="Low Stock Warnings" icon={<AlertTriangle size={18} />}>
                 {lowStockItems.length === 0 ? (
@@ -789,6 +836,16 @@ function App() {
                     onChange={(event) => updateSettings({ expensesIncludeVat: event.target.checked })}
                   />
                   Expenses include moms
+                </label>
+                <label>
+                  Daily sales goal
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={data.settings.dailyRevenueGoal}
+                    onChange={(event) => updateSettings({ dailyRevenueGoal: numberValue(event.target.value) })}
+                  />
                 </label>
                 <label>
                   Guf bucket price ex. moms

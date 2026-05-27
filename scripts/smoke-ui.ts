@@ -6,11 +6,12 @@ const page = await browser.newPage({ viewport: { width: 1366, height: 900 } })
 
 await page.goto('http://127.0.0.1:5173/', { waitUntil: 'commit', timeout: 10000 })
 await page.getByRole('button', { name: 'Dashboard' }).waitFor({ timeout: 20000 })
+const text = async () => ((await page.textContent('body')) ?? '').replace(/\s+/g, ' ')
+assert((await text()).includes('Shop Quest'), 'Dashboard should show the gamified Shop Quest panel')
 await page.getByRole('button', { name: 'Daily Report' }).click()
 await page.locator('input[type="date"]').fill('2026-05-23')
 
 await page.getByText('Total revenue').waitFor()
-const text = async () => ((await page.textContent('body')) ?? '').replace(/\s+/g, ' ')
 assert((await text()).includes('4.060,00 kr.'), 'Seeded 23/05/2026 revenue should show 4.060,00 kr.')
 assert((await text()).includes('812,00 kr.'), 'Seeded 23/05/2026 sales VAT should show 812,00 kr.')
 

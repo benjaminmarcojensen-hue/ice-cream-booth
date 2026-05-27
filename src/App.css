@@ -162,6 +162,76 @@ button:disabled {
   border-top-color: #d88a22;
 }
 
+.quest-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+}
+
+.quest-card {
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf9;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+}
+
+.quest-card span,
+.quest-card small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quest-card strong {
+  font-size: 22px;
+  color: var(--heading);
+}
+
+.quest-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f3eadb;
+}
+
+.quest-progress i {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  border-radius: inherit;
+  background: #2f7d4c;
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.achievement {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: #f7f2ea;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.achievement.unlocked {
+  color: #237545;
+  border-color: #b9dec4;
+  background: #e7f6ed;
+}
+
 .two-column,
 .chart-grid {
   display: grid;
@@ -621,6 +691,7 @@ td .subtle {
   .metrics-grid,
   .two-column,
   .chart-grid,
+  .quest-grid,
   .settings-grid,
   .cloud-settings,
   .flavor-grid,

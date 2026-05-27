@@ -94,6 +94,7 @@ export type Settings = {
   salesPricesIncludeVat: boolean
   productCostsIncludeVat: boolean
   expensesIncludeVat: boolean
+  dailyRevenueGoal: number
   gufBucketPriceExVat: number
   gufPortionsPerBucket: number
   businessName: string

@@ -37,7 +37,9 @@ That report calculates to `4.060 kr.` sales incl. moms, `3.248 kr.` sales ex. mo
 
 ## Dashboard Overview
 
-Open **Dashboard** and use the period filter for **Today**, **This week**, or **This month**. The dashboard shows one period at a time, plus total tub usage and average profit per tub based on logged tub usage.
+Open **Dashboard** and use the period filter for **Today**, **This week**, or **This month**. The dashboard shows one period at a time and includes **Shop Quest**, a light gamification panel with goal progress, report streak, scoop score, and achievement badges.
+
+Open **Product Pricing** to edit the daily sales goal used by Shop Quest.
 
 ## Add Stock Items
 

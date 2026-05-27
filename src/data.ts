@@ -181,6 +181,7 @@ export const seedData: AppData = {
     salesPricesIncludeVat: true,
     productCostsIncludeVat: true,
     expensesIncludeVat: true,
+    dailyRevenueGoal: 4000,
     gufBucketPriceExVat: 639.66,
     gufPortionsPerBucket: 100,
     businessName: 'Isvognen / Ice Cream Booth',

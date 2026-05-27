@@ -45,6 +45,13 @@ export const addDays = (date: string, days: number) => {
   return toInputDate(next)
 }
 
+export const countDaysInclusive = (start: string, end: string) => {
+  const startTime = parseInputDate(start).getTime()
+  const endTime = parseInputDate(end).getTime()
+  if (endTime < startTime) return 0
+  return Math.round((endTime - startTime) / 86_400_000) + 1
+}
+
 export const getWeekRange = (date: string) => {
   const current = parseInputDate(date)
   const dayIndex = (current.getDay() + 6) % 7
@@ -61,6 +68,19 @@ export const getMonthRange = (date: string) => {
 }
 
 export const isDateInRange = (date: string, start: string, end: string) => date >= start && date <= end
+
+export const getReportStreak = (reports: DailyReport[], upToDate = toInputDate()) => {
+  const reportDates = new Set(reports.filter((report) => report.items.some((item) => item.quantity > 0)).map((report) => report.date))
+  let streak = 0
+  let cursor = upToDate
+
+  while (reportDates.has(cursor)) {
+    streak += 1
+    cursor = addDays(cursor, -1)
+  }
+
+  return streak
+}
 
 export const getGufBucketPriceInclVat = (settings: Settings) =>
   settings.gufBucketPriceExVat * (1 + settings.vatRate / 100)
