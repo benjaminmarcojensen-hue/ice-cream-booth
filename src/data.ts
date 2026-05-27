@@ -182,6 +182,7 @@ export const seedData: AppData = {
     productCostsIncludeVat: true,
     expensesIncludeVat: true,
     dailyRevenueGoal: 800,
+    shopQuestGoalVersion: 1,
     gufBucketPriceExVat: 639.66,
     gufPortionsPerBucket: 100,
     businessName: 'Isvognen / Ice Cream Booth',

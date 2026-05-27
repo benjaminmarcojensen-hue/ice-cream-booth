@@ -3,6 +3,7 @@ import { calculateDateRangeSummary, calculateReportTotals, calculateStock, count
 import { expenseTypes, seedData } from '../src/data.ts'
 import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
 import { parseDailyReportText } from '../src/parser.ts'
+import { normalizeData } from '../src/storage.ts'
 import type { DailyReport } from '../src/types.ts'
 
 const approx = (actual: number, expected: number, message: string) => assert(Math.abs(actual - expected) < 0.001, message)
@@ -23,6 +24,8 @@ assert.equal(countDaysInclusive('2026-05-18', '2026-05-24'), 7, 'Inclusive day c
 assert.equal(getReportStreak(seedData.dailyReports, '2026-05-23'), 1, 'Report streak should count consecutive report days')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 4060, 'Date range dashboard summary should include the seed report')
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
+assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 4000, shopQuestGoalVersion: 0 } }).settings.dailyRevenueGoal, 800, 'Old saved Shop Quest goal should migrate to 800 kr.')
+assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 1200, shopQuestGoalVersion: 1 } }).settings.dailyRevenueGoal, 1200, 'User-edited current goal should be preserved')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
 assert(seedData.recurringExpenses.some((expense) => expense.type === 'Cash register system'), 'Seed data should include a monthly cash register expense template')
 const expenseOnlySummary = calculateDateRangeSummary(

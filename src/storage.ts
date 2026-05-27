@@ -8,12 +8,17 @@ export const cloneSeedData = (): AppData => JSON.parse(JSON.stringify(seedData))
 
 export const normalizeData = (data: Partial<AppData>): AppData => {
   const seed = cloneSeedData()
+  const savedSettings = data.settings ?? {}
+  const shouldMigrateShopQuestGoal = savedSettings.shopQuestGoalVersion !== seed.settings.shopQuestGoalVersion
+
   return {
     ...seed,
     ...data,
     settings: {
       ...seed.settings,
-      ...(data.settings ?? {}),
+      ...savedSettings,
+      dailyRevenueGoal: shouldMigrateShopQuestGoal ? seed.settings.dailyRevenueGoal : (savedSettings.dailyRevenueGoal ?? seed.settings.dailyRevenueGoal),
+      shopQuestGoalVersion: seed.settings.shopQuestGoalVersion,
     },
   }
 }
