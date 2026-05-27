@@ -22,7 +22,7 @@ assert.deepEqual(getWeekRange('2026-05-23'), { start: '2026-05-18', end: '2026-0
 assert.equal(countDaysInclusive('2026-05-18', '2026-05-24'), 7, 'Inclusive day count should support dashboard goals')
 assert.equal(getReportStreak(seedData.dailyReports, '2026-05-23'), 1, 'Report streak should count consecutive report days')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 4060, 'Date range dashboard summary should include the seed report')
-assert.equal(seedData.settings.dailyRevenueGoal, 4000, 'Seed settings should include a daily sales goal')
+assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
 assert(seedData.recurringExpenses.some((expense) => expense.type === 'Cash register system'), 'Seed data should include a monthly cash register expense template')
 const expenseOnlySummary = calculateDateRangeSummary(

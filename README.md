@@ -39,7 +39,7 @@ That report calculates to `4.060 kr.` sales incl. moms, `3.248 kr.` sales ex. mo
 
 Open **Dashboard** and use the period filter for **Today**, **This week**, or **This month**. The dashboard shows one period at a time and includes **Shop Quest**, a light gamification panel with goal progress, report streak, scoop score, and achievement badges.
 
-Open **Product Pricing** to edit the daily sales goal used by Shop Quest.
+Open **Product Pricing** to edit the daily sales goal used by Shop Quest. The default is `800 kr.` per day, shown as `800 kr.` today, `5.600 kr.` weekly, and `24.000 kr.` monthly.
 
 ## Add Stock Items
 

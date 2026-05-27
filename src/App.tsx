@@ -6,7 +6,6 @@ import {
   calculateMonthlySummary,
   calculateReportTotals,
   calculateStock,
-  countDaysInclusive,
   formatKr,
   formatNumber,
   getGufBucketPriceInclVat,
@@ -236,6 +235,12 @@ const getDashboardRange = (period: DashboardPeriod, today = toInputDate()) => {
   return { ...getMonthRange(today), label: 'This month' }
 }
 
+const getDashboardGoalMultiplier = (period: DashboardPeriod) => {
+  if (period === 'day') return 1
+  if (period === 'week') return 7
+  return 30
+}
+
 const recurringExpenseDate = (month: string, dayOfMonth: number) => {
   const [year, monthNumber] = month.split('-').map(Number)
   const lastDay = new Date(year, monthNumber, 0).getDate()
@@ -340,7 +345,7 @@ function App() {
   )
   const lowStockItems = getLowStockItems(data)
   const shopQuest = useMemo(() => {
-    const periodGoal = data.settings.dailyRevenueGoal * countDaysInclusive(dashboardRange.start, dashboardRange.end)
+    const periodGoal = data.settings.dailyRevenueGoal * getDashboardGoalMultiplier(dashboardPeriod)
     const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
     return {
       periodGoal,
@@ -350,7 +355,7 @@ function App() {
       completedReports: data.dailyReports.filter((report) => report.items.some((item) => item.quantity > 0)).length,
       hasLowStock: lowStockItems.length > 0,
     }
-  }, [dashboardRange.end, dashboardRange.start, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, lowStockItems.length])
+  }, [dashboardPeriod, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, lowStockItems.length])
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
