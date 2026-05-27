@@ -22,6 +22,12 @@ assert.deepEqual(getWeekRange('2026-05-23'), { start: '2026-05-18', end: '2026-0
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 4060, 'Date range dashboard summary should include the seed report')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
 assert(seedData.recurringExpenses.some((expense) => expense.type === 'Cash register system'), 'Seed data should include a monthly cash register expense template')
+const expenseOnlySummary = calculateDateRangeSummary(
+  { ...seedData, dailyReports: [], expenses: [{ id: 'expense-test', date: '2026-05-27', type: 'Other', description: 'Test', amount: 250, paymentMethod: 'Card', notes: '' }] },
+  '2026-05-27',
+  '2026-05-27',
+)
+assert.equal(expenseOnlySummary.expenses, 250, 'Dashboard range should not double count expense-only dates')
 
 const changedReport: DailyReport = {
   ...exampleReport,

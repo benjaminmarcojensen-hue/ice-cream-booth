@@ -198,7 +198,7 @@ export const calculateDateRangeSummary = (data: AppData, startDate: string, endD
       summary.lines.push(...reportTotals.lines)
       return summary
     },
-    calculateReportTotals(emptyReport, data.products, data.expenses, data.settings),
+    calculateReportTotals(emptyReport, data.products, [], data.settings),
   )
 
   const productMap = new Map<string, { product: string; quantity: number; revenue: number }>()
