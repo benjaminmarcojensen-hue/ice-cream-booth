@@ -253,10 +253,10 @@ const formatDateLabel = (date?: string) => (date ? date.split('-').reverse().joi
 const getDashboardRange = (today = toInputDate()) => ({ start: today, end: today, label: 'Today' })
 
 const imagePaths = {
-  homepageHero: '/images/homepage-hero.png',
-  boothScene: '/images/booth-scene.png',
-  coupleBadge: '/images/couple-badge.png',
-  coupleCloseup: '/images/couple-closeup.png',
+  homepageHero: 'images/homepage-hero.png',
+  boothScene: 'images/booth-scene.png',
+  coupleBadge: 'images/couple-badge.png',
+  coupleCloseup: 'images/couple-closeup.png',
 } as const
 
 const recurringExpenseDate = (month: string, dayOfMonth: number) => {

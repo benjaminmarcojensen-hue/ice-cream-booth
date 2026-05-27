@@ -104,6 +104,18 @@ On your partner's browser, repeat steps 5-7, turn on cloud sync, then click **Lo
 
 This simple setup has no login. Anyone with the app URL and anon key can edit the shared data, so use it for trusted people only.
 
+## Deployment Recovery
+
+If Netlify deploys are paused or the team has hit a credit limit, use `DEPLOYMENT_RECOVERY.md`.
+
+The short version:
+
+- The app is static and still builds locally with `npm run build`.
+- Fresh free hosting recommendation: Cloudflare Pages.
+- Build command: `npm run build`.
+- Publish/output directory: `dist`.
+- GitHub Pages is also prepared through `.github/workflows/deploy-pages.yml`.
+
 ## Reset Or Backup Data
 
 Data is stored locally in your browser using `localStorage`.
