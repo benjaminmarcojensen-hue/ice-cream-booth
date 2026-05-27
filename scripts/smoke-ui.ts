@@ -55,6 +55,8 @@ await page.getByRole('button', { name: 'Urgent Refill' }).click()
 assert((await page.textContent('body'))?.includes('Out of Stock'), 'Urgent stock filter should show out-of-stock shelves')
 await page.getByRole('button', { name: '+1' }).first().click()
 assert((await page.textContent('body'))?.includes('Shelf restocked'), 'Quick refill should update a shelf with feedback')
+await page.getByRole('button', { name: 'Undo', exact: true }).click()
+assert((await page.textContent('body'))?.includes('Undid movement'), 'Accidental stock refill should be undoable')
 await page.getByRole('button', { name: 'Add ice cream tub' }).click()
 const stockNames = await page
   .locator('tbody tr')

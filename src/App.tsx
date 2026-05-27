@@ -62,6 +62,7 @@ type IconComponent = (props: { size?: number }) => React.ReactElement
 type StockFilter = 'All' | 'Ingredients' | 'Packaging' | 'Toppings' | 'Urgent Refill' | 'Out of Stock'
 type StockActionMode = 'add' | 'use'
 type StockActionDraft = { stockItemId: string; mode: StockActionMode; quantity: number; notes: string }
+type StockFeedback = { stockItemId: string; movementId?: string; message: string }
 
 const IconGlyph = ({ size = 18, variant }: { size?: number; variant: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -342,7 +343,7 @@ function App() {
   const [selectedTubFlavor, setSelectedTubFlavor] = useState(data.flavors[0] ?? 'Vanilje')
   const [stockFilter, setStockFilter] = useState<StockFilter>('All')
   const [stockActionDraft, setStockActionDraft] = useState<StockActionDraft | null>(null)
-  const [stockFeedback, setStockFeedback] = useState<{ stockItemId: string; message: string } | null>(null)
+  const [stockFeedback, setStockFeedback] = useState<StockFeedback | null>(null)
   const [movementDraft, setMovementDraft] = useState<StockMovement>(() => emptyStockMovement(data.stockItems[0]?.id))
   const [importText, setImportText] = useState('')
   const [parsedDraft, setParsedDraft] = useState<{ report: DailyReport; expenses: Expense[] } | null>(null)
@@ -660,6 +661,7 @@ function App() {
     if (!stockItemId || movementDraft.quantity <= 0) return
     const movement = { ...movementDraft, id: createId('movement'), stockItemId, quantity: Math.max(0, movementDraft.quantity || 0) }
     setData((current) => ({ ...current, stockMovements: [movement, ...current.stockMovements] }))
+    setStockFeedback({ stockItemId, movementId: movement.id, message: `Stock movement added: ${movement.type} ${formatNumber(movement.quantity)}` })
     setMovementDraft(emptyStockMovement(stockItemId))
   }
 
@@ -676,8 +678,11 @@ function App() {
     }
     const stockItemName = data.stockItems.find((item) => item.id === stockItemId)?.name ?? 'Shelf'
     setData((current) => ({ ...current, stockMovements: [movement, ...current.stockMovements] }))
-    setStockFeedback({ stockItemId, message: mode === 'add' ? `Shelf restocked: +${formatNumber(safeQuantity)} ${stockItemName}` : `Stock reduced: -${formatNumber(safeQuantity)} ${stockItemName}` })
-    window.setTimeout(() => setStockFeedback((current) => (current?.stockItemId === stockItemId ? null : current)), 2200)
+    setStockFeedback({
+      stockItemId,
+      movementId: movement.id,
+      message: mode === 'add' ? `Shelf restocked: +${formatNumber(safeQuantity)} ${stockItemName}` : `Stock reduced: -${formatNumber(safeQuantity)} ${stockItemName}`,
+    })
   }
 
   const openStockAction = (stockItemId: string, mode: StockActionMode) => {
@@ -690,8 +695,13 @@ function App() {
     setStockActionDraft(null)
   }
 
-  const removeStockMovement = (movementId: string) => {
-    setData((current) => ({ ...current, stockMovements: current.stockMovements.filter((movement) => movement.id !== movementId) }))
+  const undoStockMovement = (movementId: string, requireConfirmation = false) => {
+    const movement = data.stockMovements.find((entry) => entry.id === movementId)
+    if (!movement) return
+    const itemName = data.stockItems.find((item) => item.id === movement.stockItemId)?.name ?? 'this item'
+    if (requireConfirmation && !confirm(`Undo stock movement for ${itemName}? This only removes that one log entry and recalculates stock.`)) return
+    setData((current) => ({ ...current, stockMovements: current.stockMovements.filter((entry) => entry.id !== movementId) }))
+    setStockFeedback({ stockItemId: movement.stockItemId, message: `Undid movement: ${movement.type} ${formatNumber(movement.quantity)} ${itemName}` })
   }
 
   const saveExpenseDraft = (override?: Partial<Expense>) => {
@@ -1360,11 +1370,12 @@ function App() {
               <div className="shelf-grid">
                 {filteredInventoryCards.map((item) => (
                   <StockShelfCard
-                    feedback={stockFeedback?.stockItemId === item.id ? stockFeedback.message : undefined}
+                    feedback={stockFeedback?.stockItemId === item.id ? stockFeedback : undefined}
                     item={item}
                     key={item.id}
                     onQuickAdd={(quantity) => recordShelfMovement(item.id, 'add', quantity)}
                     onRefill={() => openStockAction(item.id, 'add')}
+                    onUndoMovement={(movementId) => undoStockMovement(movementId)}
                     onUse={() => openStockAction(item.id, 'use')}
                   />
                 ))}
@@ -1373,6 +1384,7 @@ function App() {
             </Panel>
 
             <Panel title="Stock Movement Log" icon={<ReceiptText size={18} />}>
+              <p className="panel-note">Added too much by accident? Use “Undo movement” to remove just that stock log entry. Current stock recalculates from the remaining sales and movement history.</p>
               <div className="movement-editor">
                 <label>
                   Item
@@ -1422,7 +1434,7 @@ function App() {
                       <th>Date</th>
                       <th>Item</th>
                       <th>Type</th>
-                      <th>Qty</th>
+                      <th>Impact</th>
                       <th>Notes</th>
                       <th></th>
                     </tr>
@@ -1430,21 +1442,26 @@ function App() {
                   <tbody>
                     {[...data.stockMovements]
                       .sort((a, b) => b.date.localeCompare(a.date))
-                      .slice(0, 8)
-                      .map((movement) => (
-                        <tr key={movement.id}>
-                          <td>{movement.date}</td>
-                          <td>{data.stockItems.find((item) => item.id === movement.stockItemId)?.name ?? 'Removed item'}</td>
-                          <td>{movement.type}</td>
-                          <td>{formatNumber(movement.quantity)}</td>
-                          <td>{movement.notes}</td>
-                          <td>
-                            <button className="remove-button" type="button" onClick={() => removeStockMovement(movement.id)}>
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      .slice(0, 20)
+                      .map((movement) => {
+                        const addsStock = movement.type === 'Received' || movement.type === 'Adjustment +'
+                        return (
+                          <tr key={movement.id}>
+                            <td>{movement.date}</td>
+                            <td>{data.stockItems.find((item) => item.id === movement.stockItemId)?.name ?? 'Removed item'}</td>
+                            <td>{movement.type}</td>
+                            <td className={addsStock ? 'positive' : 'negative'}>
+                              {addsStock ? '+' : '-'}{formatNumber(movement.quantity)}
+                            </td>
+                            <td>{movement.notes}</td>
+                            <td>
+                              <button className="remove-button" type="button" onClick={() => undoStockMovement(movement.id, true)}>
+                                Undo movement
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
                   </tbody>
                 </table>
                 {!data.stockMovements.length && <p className="muted empty-table-note">No stock movements yet.</p>}
@@ -2158,12 +2175,14 @@ function StockShelfCard({
   item,
   onQuickAdd,
   onRefill,
+  onUndoMovement,
   onUse,
 }: {
-  feedback?: string
+  feedback?: StockFeedback
   item: InventoryCard
   onQuickAdd: (quantity: number) => void
   onRefill: () => void
+  onUndoMovement: (movementId: string) => void
   onUse: () => void
 }) {
   return (
@@ -2211,7 +2230,16 @@ function StockShelfCard({
           <button key={quantity} type="button" onClick={() => onQuickAdd(quantity)}>+{quantity}</button>
         ))}
       </div>
-      {feedback && <div className="shelf-feedback">{feedback}</div>}
+      {feedback && (
+        <div className="shelf-feedback">
+          <span>{feedback.message}</span>
+          {feedback.movementId ? (
+            <button type="button" onClick={() => onUndoMovement(feedback.movementId as string)}>
+              Undo
+            </button>
+          ) : null}
+        </div>
+      )}
     </article>
   )
 }

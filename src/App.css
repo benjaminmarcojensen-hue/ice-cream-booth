@@ -1864,10 +1864,26 @@ button:disabled {
   z-index: 1;
   padding: 10px 12px;
   border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
   color: #1c5949;
   background: #dff5e8;
   font-weight: 900;
   animation: pop-in 220ms ease both;
+}
+
+.shelf-feedback button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(28, 89, 73, 0.2);
+  border-radius: 999px;
+  color: #1c5949;
+  background: rgba(255, 255, 255, 0.82);
+  font-weight: 950;
+  cursor: pointer;
 }
 
 .refill-modal {
@@ -2441,6 +2457,13 @@ td .subtle {
 
 .movement-history {
   margin-top: 14px;
+}
+
+.panel-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .empty-table-note {
