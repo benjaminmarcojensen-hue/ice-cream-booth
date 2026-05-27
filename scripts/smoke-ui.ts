@@ -12,6 +12,10 @@ assert((await text()).includes("Today's Score"), 'Dashboard should show today sc
 assert((await text()).includes('Current Streak'), 'Dashboard should show current streak')
 assert((await text()).includes('Best Seller Today'), 'Dashboard should show best seller today')
 assert((await text()).includes('Recent Achievements'), 'Dashboard should show recent achievements')
+await page.locator('.nav-tabs').getByRole('button', { name: 'Achievements', exact: true }).click()
+assert((await text()).includes('Achievement Wall'), 'Achievements page should show the full badge wall')
+assert((await text()).includes('Unlocked 23/05/2026'), 'Achievements should display unlock dates')
+await page.locator('.nav-tabs').getByRole('button', { name: 'Dashboard' }).click()
 await page.getByRole('button', { name: 'Daily Report', exact: true }).click()
 await page.locator('input[type="date"]').fill('2026-05-23')
 

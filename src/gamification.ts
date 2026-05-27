@@ -27,6 +27,7 @@ export type Achievement = {
   title: string
   description: string
   unlocked: boolean
+  unlockDate?: string
 }
 
 export type Streaks = {
@@ -81,6 +82,9 @@ const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, N
 
 const reportsWithSales = (reports: DailyReport[]) => reports.filter((report) => report.items.some((item) => item.quantity > 0))
 
+const latestBusinessDate = (data: AppData) =>
+  [...data.dailyReports.map((report) => report.date), ...data.stockMovements.map((movement) => movement.date), ...data.expenses.map((expense) => expense.date)].sort().at(-1) ?? toInputDate()
+
 const getRecentDailyUsage = (data: AppData, item: AppData['stockItems'][number], days = 14) => {
   const end = toInputDate()
   const start = addDays(end, -(days - 1))
@@ -107,15 +111,17 @@ const getInventoryCategory = (data: AppData, item: AppData['stockItems'][number]
   return 'Other'
 }
 
+const revenueMilestoneXp = (revenue: number) => (revenue >= 10000 ? 500 : revenue >= 5000 ? 200 : revenue >= 1000 ? 50 : 0)
+
 export const calculateBusinessXp = (data: AppData) =>
   reportsWithSales(data.dailyReports).reduce((xp, report) => {
     const totals = calculateReportTotals(report, data.products, data.expenses, data.settings)
-    return xp + calculateReportXp(totals)
+    return xp + calculateReportXp(totals, getLowStockItems(data).length)
   }, 0)
 
-export const calculateReportXp = (totals: Pick<ReturnType<typeof calculateReportTotals>, 'totalItems' | 'netProfit'>) =>
-  // XP rewards the habit of reporting, the number of products sold, and real profit.
-  10 + Math.floor(totals.totalItems) + Math.floor(Math.max(0, totals.netProfit) / 10)
+export const calculateReportXp = (totals: Pick<ReturnType<typeof calculateReportTotals>, 'totalItems' | 'netProfit' | 'totalRevenue'>, stockWarnings = 0) =>
+  // XP rewards completed reports, product volume, real profit, revenue milestones, and calm stock control.
+  10 + Math.floor(totals.totalItems) + Math.floor(Math.max(0, totals.netProfit) / 10) + revenueMilestoneXp(totals.totalRevenue) + (stockWarnings === 0 ? 15 : 0)
 
 export const getLevelProgress = (xp: number): LevelProgress => {
   const index = levelThresholds.findIndex((threshold, currentIndex) => xp < (levelThresholds[currentIndex + 1] ?? Number.POSITIVE_INFINITY))
@@ -184,28 +190,72 @@ export const getBusinessHealth = (data: AppData, summary: MonthlySummary, startD
   }
 }
 
+const achievement = (id: string, title: string, description: string, unlockDate?: string): Achievement => ({
+  id,
+  title,
+  description,
+  unlocked: Boolean(unlockDate),
+  unlockDate,
+})
+
+const firstReportDate = (reports: DailyReport[], qualifies: (report: DailyReport) => boolean) => reports.filter(qualifies).sort((a, b) => a.date.localeCompare(b.date))[0]?.date
+
+const reportStreakUnlockDate = (reports: DailyReport[], target: number) => {
+  let streak = 0
+  let previousDate = ''
+
+  for (const report of reports.filter((entry) => entry.items.some((item) => item.quantity > 0)).sort((a, b) => a.date.localeCompare(b.date))) {
+    streak = previousDate && addDays(previousDate, 1) === report.date ? streak + 1 : 1
+    if (streak >= target) return report.date
+    previousDate = report.date
+  }
+
+  return undefined
+}
+
 export const getAchievements = (data: AppData, level: LevelProgress): Achievement[] => {
   const soldReports = reportsWithSales(data.dailyReports)
-  const reportTotals = soldReports.map((report) => calculateReportTotals(report, data.products, data.expenses, data.settings))
-  const bestProfit = Math.max(0, ...reportTotals.map((totals) => totals.netProfit))
-  const totalRevenue = reportTotals.reduce((sum, totals) => sum + totals.totalRevenue, 0)
+  const reportsByDate = [...data.dailyReports].sort((a, b) => a.date.localeCompare(b.date))
+  const soldReportsByDate = [...soldReports].sort((a, b) => a.date.localeCompare(b.date))
+  const reportTotals = soldReportsByDate.map((report) => ({ report, totals: calculateReportTotals(report, data.products, data.expenses, data.settings) }))
+  const bestProfitEntry = reportTotals.reduce<(typeof reportTotals)[number] | undefined>(
+    (best, entry) => (!best || entry.totals.netProfit > best.totals.netProfit ? entry : best),
+    undefined,
+  )
+  const totalRevenue = reportTotals.reduce((sum, entry) => sum + entry.totals.totalRevenue, 0)
   const totalGuf = soldReports.reduce(
     (sum, report) => sum + (report.items.find((item) => item.productId === 'guf')?.quantity ?? 0),
     0,
   )
   const inventory = data.stockItems.map((item) => calculateStock(item, data.dailyReports, data.stockMovements))
+  const wasteDates = new Set(data.stockMovements.filter((movement) => movement.type === 'Waste').map((movement) => movement.date))
+  const soldOutDate = inventory.some((stock) => stock.currentStock <= 0) ? data.stockMovements.filter((movement) => movement.type === 'Used' || movement.type === 'Waste' || movement.type === 'Adjustment -').sort((a, b) => b.date.localeCompare(a.date))[0]?.date ?? latestBusinessDate(data) : undefined
+  const stockMasterDate = data.stockItems.length > 0 && getLowStockItems(data).length === 0 ? latestBusinessDate(data) : undefined
+  const firstGufMasterDate =
+    soldReportsByDate.reduce<{ total: number; date?: string }>(
+      (state, report) => {
+        const nextTotal = state.total + (report.items.find((item) => item.productId === 'guf')?.quantity ?? 0)
+        return { total: nextTotal, date: state.date ?? (nextTotal >= 25 ? report.date : undefined) }
+      },
+      { total: 0 },
+    ).date
+  const bossDate = level.level >= 5 || totalRevenue >= 50000 ? latestBusinessDate(data) : undefined
 
   return [
-    { id: 'first-sale', title: 'First Sale', description: 'Record your first sold item.', unlocked: reportTotals.some((totals) => totals.totalItems > 0) },
-    { id: 'revenue-1000', title: '1.000 kr Revenue Day', description: 'Hit 1.000 kr in one day.', unlocked: reportTotals.some((totals) => totals.totalRevenue >= 1000) },
-    { id: 'revenue-5000', title: '5.000 kr Revenue Day', description: 'Hit 5.000 kr in one day.', unlocked: reportTotals.some((totals) => totals.totalRevenue >= 5000) },
-    { id: 'ten-days', title: '10 Days Tracked', description: 'Save reports for 10 selling days.', unlocked: soldReports.length >= 10 },
-    { id: 'best-profit', title: 'Best Profit Day', description: 'Create a day with positive profit.', unlocked: bestProfit > 0 },
-    { id: 'sold-out', title: 'Sold Out', description: 'Track an item all the way to zero stock.', unlocked: inventory.some((stock) => stock.currentStock <= 0) },
-    { id: 'perfect-stock', title: 'Perfect Stock Control', description: 'No active reorder alerts.', unlocked: data.stockItems.length > 0 && getLowStockItems(data).length === 0 },
-    { id: 'no-waste', title: 'No Waste Day', description: 'Save reports without logged waste.', unlocked: soldReports.length > 0 && data.stockMovements.every((movement) => movement.type !== 'Waste') },
-    { id: 'guf-master', title: 'Guf Master', description: 'Sell 25 portions of guf.', unlocked: totalGuf >= 25 },
-    { id: 'ice-cream-boss', title: 'Ice Cream Boss', description: 'Reach level 5 or 50.000 kr lifetime revenue.', unlocked: level.level >= 5 || totalRevenue >= 50000 },
+    achievement('first-sale', 'First Sale', 'Record your first sold item.', firstReportDate(soldReportsByDate, (report) => report.items.some((item) => item.quantity > 0))),
+    achievement('first-report', 'First Report', 'Save your first daily report.', reportsByDate[0]?.date),
+    achievement('revenue-1000', '1.000 kr Revenue Day', 'Hit 1.000 kr in one day.', reportTotals.find((entry) => entry.totals.totalRevenue >= 1000)?.report.date),
+    achievement('revenue-5000', '5.000 kr Revenue Day', 'Hit 5.000 kr in one day.', reportTotals.find((entry) => entry.totals.totalRevenue >= 5000)?.report.date),
+    achievement('revenue-10000', '10.000 kr Revenue Day', 'Hit 10.000 kr in one day.', reportTotals.find((entry) => entry.totals.totalRevenue >= 10000)?.report.date),
+    achievement('first-profitable-day', 'First Profitable Day', 'Finish a day with positive net profit.', reportTotals.find((entry) => entry.totals.netProfit > 0)?.report.date),
+    achievement('report-streak-7', '7 Day Report Streak', 'Enter reports for 7 consecutive selling days.', reportStreakUnlockDate(data.dailyReports, 7)),
+    achievement('report-streak-30', '30 Day Report Streak', 'Enter reports for 30 consecutive selling days.', reportStreakUnlockDate(data.dailyReports, 30)),
+    achievement('best-profit', 'Best Profit Day', 'Set a new highest-profit day.', bestProfitEntry && bestProfitEntry.totals.netProfit > 0 ? bestProfitEntry.report.date : undefined),
+    achievement('sold-out', 'Sold Out', 'Track an item all the way to zero stock.', soldOutDate),
+    achievement('no-waste', 'No Waste Day', 'Save a sales report with no logged waste that day.', soldReportsByDate.find((report) => !wasteDates.has(report.date))?.date),
+    achievement('stock-master', 'Stock Master', 'Keep every tracked stock item above its minimum level.', stockMasterDate),
+    achievement('guf-master', 'Guf Master', 'Sell 25 portions of guf.', firstGufMasterDate),
+    achievement('ice-cream-boss', 'Ice Cream Boss', 'Reach level 5 or 50.000 kr lifetime revenue.', bossDate),
   ]
 }
 

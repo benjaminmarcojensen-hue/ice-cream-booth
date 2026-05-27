@@ -443,7 +443,7 @@ button:disabled {
 
 .home-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   grid-column: 2 / -1;
 }
@@ -722,6 +722,17 @@ button:disabled {
   gap: 10px;
 }
 
+.achievements-hq {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) repeat(4, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.achievement-level-card {
+  min-height: 180px;
+}
+
 .achievement-tile {
   min-height: 118px;
   padding: 14px;
@@ -761,6 +772,58 @@ button:disabled {
 .achievement-tile small {
   color: var(--muted);
   font-weight: 700;
+}
+
+.achievement-tile b {
+  margin-top: 4px;
+  color: #8b5c2d;
+  font-size: 12px;
+}
+
+.achievement-tile.locked {
+  opacity: 0.72;
+}
+
+.achievement-popup {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  width: min(340px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #fffdfa, #fff0d8 52%, #eafff7);
+  box-shadow: 0 24px 62px rgba(37, 26, 18, 0.24);
+  animation: pop-in 260ms ease both;
+}
+
+.achievement-popup button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.achievement-popup strong {
+  color: var(--heading);
+  font-size: 22px;
+}
+
+.achievement-popup small,
+.achievement-popup p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .product-card-grid,
@@ -1914,6 +1977,7 @@ td .subtle {
   .cloud-settings,
   .chart-grid,
   .achievement-grid,
+  .achievements-hq,
   .product-card-grid,
   .inventory-grid,
   .stock-room-overview,
@@ -1951,6 +2015,7 @@ td .subtle {
   .quest-grid,
   .streak-grid,
   .achievement-grid,
+  .achievements-hq,
   .product-card-grid,
   .inventory-grid,
   .stock-room-overview,

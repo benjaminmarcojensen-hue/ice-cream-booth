@@ -53,7 +53,7 @@ import type {
   StockMovementType,
 } from './types'
 
-type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'summary' | 'import' | 'export'
+type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'achievements' | 'summary' | 'import' | 'export'
 type IconComponent = (props: { size?: number }) => React.ReactElement
 type StockFilter = 'All' | 'Ingredients' | 'Packaging' | 'Toppings' | 'Urgent Refill' | 'Out of Stock'
 type StockActionMode = 'add' | 'use'
@@ -122,6 +122,13 @@ const IconGlyph = ({ size = 18, variant }: { size?: number; variant: string }) =
           <path d="M12 9v5M12 17h.01" />
         </>
       )}
+      {variant === 'trophy' && (
+        <>
+          <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
+          <path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4" />
+          <path d="M12 13v5M9 21h6M8 18h8" />
+        </>
+      )}
       {variant === 'plus' && <path d="M12 5v14M5 12h14" />}
       {variant === 'save' && (
         <>
@@ -160,6 +167,7 @@ const ReceiptText: IconComponent = ({ size }) => <IconGlyph size={size} variant=
 const Upload: IconComponent = ({ size }) => <IconGlyph size={size} variant="upload" />
 const Download: IconComponent = ({ size }) => <IconGlyph size={size} variant="download" />
 const AlertTriangle: IconComponent = ({ size }) => <IconGlyph size={size} variant="alert" />
+const Trophy: IconComponent = ({ size }) => <IconGlyph size={size} variant="trophy" />
 const Plus: IconComponent = ({ size }) => <IconGlyph size={size} variant="plus" />
 const Save: IconComponent = ({ size }) => <IconGlyph size={size} variant="save" />
 const Settings: IconComponent = ({ size }) => <IconGlyph size={size} variant="settings" />
@@ -172,6 +180,7 @@ const tabs: { id: TabId; label: string; icon: IconComponent }[] = [
   { id: 'pricing', label: 'Product Pricing', icon: IceCreamBowl },
   { id: 'expenses', label: 'Expenses', icon: WalletCards },
   { id: 'stock', label: 'Stock', icon: PackageCheck },
+  { id: 'achievements', label: 'Achievements', icon: Trophy },
   { id: 'summary', label: 'Monthly Summary', icon: ReceiptText },
   { id: 'import', label: 'Import Report', icon: Upload },
   { id: 'export', label: 'Export', icon: Download },
@@ -233,6 +242,8 @@ const emptyStockMovement = (stockItemId = '', date = toInputDate()): StockMoveme
 })
 
 const numberValue = (value: string) => Math.max(0, Number(value || 0))
+
+const formatDateLabel = (date?: string) => (date ? date.split('-').reverse().join('/') : 'Locked')
 
 const getDashboardRange = (today = toInputDate()) => ({ start: today, end: today, label: 'Today' })
 
@@ -326,6 +337,7 @@ function App() {
   const [parsedDraft, setParsedDraft] = useState<{ report: DailyReport; expenses: Expense[] } | null>(null)
   const [saveMessage, setSaveMessage] = useState('')
   const [dayResult, setDayResult] = useState<DayResult | null>(null)
+  const [achievementPopup, setAchievementPopup] = useState<Achievement[] | null>(null)
   const skipNextCloudSave = useRef(false)
 
   useEffect(() => {
@@ -406,6 +418,10 @@ function App() {
   const streaks = useMemo(() => getBusinessStreaks(data, today), [data, today])
   const achievements = useMemo(() => getAchievements(data, levelProgress), [data, levelProgress])
   const unlockedAchievements = achievements.filter((achievement) => achievement.unlocked)
+  const recentAchievements = useMemo(
+    () => [...unlockedAchievements].sort((a, b) => (b.unlockDate ?? '').localeCompare(a.unlockDate ?? '')).slice(0, 4),
+    [unlockedAchievements],
+  )
   const inventoryCards = useMemo(() => getInventoryCards(data), [data])
   const filteredInventoryCards = useMemo(() => {
     if (stockFilter === 'All') return inventoryCards
@@ -485,14 +501,18 @@ function App() {
       expenses: [...data.expenses.filter((expense) => expense.reportId !== report.id), ...expenses],
     }
     const savedTotals = calculateReportTotals(report, nextData.products, nextData.expenses, nextData.settings)
-    const xpEarned = calculateReportXp(savedTotals)
+    const stockWarningNames = getLowStockItems(nextData).map(({ item }) => item.name)
+    const xpEarned = calculateReportXp(savedTotals, stockWarningNames.length)
     const nextLevelProgress = getLevelProgress(calculateBusinessXp(nextData))
     const previousAchievementIds = new Set(getAchievements(data, getLevelProgress(calculateBusinessXp(data))).filter((achievement) => achievement.unlocked).map((achievement) => achievement.id))
     const achievementsUnlockedToday = getAchievements(nextData, nextLevelProgress).filter((achievement) => achievement.unlocked && !previousAchievementIds.has(achievement.id))
-    const stockWarningNames = getLowStockItems(nextData).map(({ item }) => item.name)
 
     setData(nextData)
     setDayResult(getDayResult(report, savedTotals, data.settings.dailyRevenueGoal, stockWarningNames, xpEarned, nextLevelProgress, achievementsUnlockedToday))
+    if (achievementsUnlockedToday.length > 0) {
+      setAchievementPopup(achievementsUnlockedToday)
+      window.setTimeout(() => setAchievementPopup(null), 4200)
+    }
     setSaveMessage(`Saved ${report.date}: ${formatKr(savedTotals.totalRevenue)}`)
     setTimeout(() => setSaveMessage(''), 2500)
   }
@@ -784,8 +804,11 @@ function App() {
                   <span className="card-badge">Recent Achievements</span>
                   <strong>{formatNumber(unlockedAchievements.length, 0)} unlocked</strong>
                   <div className="mini-achievements">
-                    {achievements.slice(0, 4).map((achievement) => (
-                      <span className={achievement.unlocked ? 'unlocked' : ''} key={achievement.id}>{achievement.title}</span>
+                    {(recentAchievements.length ? recentAchievements : achievements.slice(0, 4)).map((achievement) => (
+                      <span className={achievement.unlocked ? 'unlocked' : ''} key={achievement.id}>
+                        {achievement.title}
+                        {achievement.unlockDate ? ` - ${formatDateLabel(achievement.unlockDate)}` : ''}
+                      </span>
                     ))}
                   </div>
                 </article>
@@ -795,6 +818,7 @@ function App() {
                   <button type="button" onClick={() => setActiveTab('expenses')}>Expenses</button>
                   <button type="button" onClick={() => setActiveTab('summary')}>Reports</button>
                   <button type="button" onClick={() => setActiveTab('pricing')}>Products</button>
+                  <button type="button" onClick={() => setActiveTab('achievements')}>Achievements</button>
                 </nav>
               </div>
             </section>
@@ -1516,6 +1540,43 @@ function App() {
           </Screen>
         )}
 
+        {activeTab === 'achievements' && (
+          <Screen title="Achievements" kicker="Business progress, unlocks, streaks, and level rewards">
+            <section className="achievements-hq">
+              <article className="level-card achievement-level-card">
+                <span className="eyebrow">Business Level</span>
+                <div className="level-title">
+                  <strong>Level {levelProgress.level}</strong>
+                  <b>{levelProgress.name}</b>
+                </div>
+                <div className="xp-progress" aria-label="Achievements page XP progress">
+                  <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
+                </div>
+                <p>
+                  {formatNumber(levelProgress.xp, 0)} XP
+                  {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
+                </p>
+              </article>
+              <Metric label="Unlocked" value={`${formatNumber(unlockedAchievements.length, 0)} / ${formatNumber(achievements.length, 0)}`} tone="good" />
+              <Metric label="Report streak" value={`${formatNumber(streaks.report, 0)} days`} />
+              <Metric label="Profit streak" value={`${formatNumber(streaks.profitable, 0)} days`} tone={streaks.profitable > 0 ? 'good' : 'neutral'} />
+              <Metric label="No-waste streak" value={`${formatNumber(streaks.stockCalm, 0)} days`} tone={streaks.stockCalm > 0 ? 'good' : 'neutral'} />
+            </section>
+
+            <Panel title="Streaks" icon={<Trophy size={18} />}>
+              <div className="streak-grid">
+                <StreakCard label="Report Streak" value={streaks.report} note="Consecutive days with saved sales reports" />
+                <StreakCard label="Profit Streak" value={streaks.profitable} note="Consecutive profitable report days" />
+                <StreakCard label="Stock Control Streak" value={streaks.stockCalm} note="Consecutive report days without logged waste" />
+              </div>
+            </Panel>
+
+            <Panel title="Achievement Wall" icon={<Trophy size={18} />}>
+              <AchievementGrid achievements={achievements} />
+            </Panel>
+          </Screen>
+        )}
+
         {activeTab === 'summary' && (
           <Screen title="Monthly Summary" kicker="Revenue, costs, profit, and breakdown charts">
             <div className="toolbar">
@@ -1685,6 +1746,7 @@ function App() {
           onSubmit={submitStockAction}
         />
       )}
+      {achievementPopup && <AchievementPopup achievements={achievementPopup} onClose={() => setAchievementPopup(null)} />}
       {dayResult && <DayCompleteModal result={dayResult} onClose={() => setDayResult(null)} />}
     </div>
   )
@@ -1779,9 +1841,22 @@ function AchievementGrid({ achievements }: { achievements: Achievement[] }) {
           <span>{achievement.unlocked ? 'Unlocked' : 'Locked'}</span>
           <strong>{achievement.title}</strong>
           <small>{achievement.description}</small>
+          <b>{achievement.unlocked ? `Unlocked ${formatDateLabel(achievement.unlockDate)}` : 'Not unlocked yet'}</b>
         </article>
       ))}
     </div>
+  )
+}
+
+function AchievementPopup({ achievements, onClose }: { achievements: Achievement[]; onClose: () => void }) {
+  return (
+    <aside className="achievement-popup" aria-live="polite">
+      <button type="button" aria-label="Close achievement popup" onClick={onClose}>x</button>
+      <span className="card-badge">Achievement unlocked</span>
+      <strong>{achievements[0]?.title}</strong>
+      {achievements.length > 1 && <small>+{achievements.length - 1} more badge{achievements.length === 2 ? '' : 's'}</small>}
+      <p>{achievements[0]?.unlockDate ? formatDateLabel(achievements[0].unlockDate) : 'Just now'}</p>
+    </aside>
   )
 }
 
