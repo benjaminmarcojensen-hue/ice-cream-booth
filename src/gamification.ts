@@ -304,7 +304,7 @@ export const getInventoryCards = (data: AppData): InventoryCard[] =>
   data.stockItems
     .map((item) => {
       const stock = calculateStock(item, data.dailyReports, data.stockMovements)
-      const target = Math.max(item.minimumStockLevel * 2, item.startingStock + item.addedStock + stock.movementAdded, stock.currentStock, 1)
+      const target = Math.max(item.minimumStockLevel * 2, item.startingStock + item.addedStock, 1)
       const progress = clamp(stock.currentStock / target)
       const averageDailyUsage = getRecentDailyUsage(data, item)
       const estimatedDaysLeft = averageDailyUsage > 0 ? stock.currentStock / averageDailyUsage : null

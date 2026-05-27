@@ -387,6 +387,7 @@ function App() {
   const [expenseMonth, setExpenseMonth] = useState(monthKey(toInputDate()))
   const [selectedTubFlavor, setSelectedTubFlavor] = useState(data.flavors[0] ?? 'Vanilje')
   const [stockFilter, setStockFilter] = useState<StockFilter>('All')
+  const [editingStockId, setEditingStockId] = useState<string | null>(null)
   const [stockActionDraft, setStockActionDraft] = useState<StockActionDraft | null>(null)
   const [stockFeedback, setStockFeedback] = useState<StockFeedback | null>(null)
   const [movementDraft, setMovementDraft] = useState<StockMovement>(() => emptyStockMovement(data.stockItems[0]?.id))
@@ -678,6 +679,9 @@ function App() {
 
   const addStockItem = (stockItem = emptyStockItem()) => {
     setData((current) => ({ ...current, stockItems: [stockItem, ...current.stockItems] }))
+    setStockFilter('All')
+    setEditingStockId(stockItem.id)
+    setStockFeedback({ stockItemId: stockItem.id, message: 'New shelf created. Rename it and set the starting count.' })
   }
 
   const addIceCreamTubStock = () => {
@@ -696,6 +700,8 @@ function App() {
         stockMovements: current.stockMovements.filter((movement) => movement.stockItemId !== item.id),
       }))
       setMovementDraft((current) => (current.stockItemId === item.id ? emptyStockMovement(data.stockItems.find((entry) => entry.id !== item.id)?.id) : current))
+      setEditingStockId((current) => (current === item.id ? null : current))
+      setStockFeedback(null)
     }
   }
 
@@ -740,6 +746,28 @@ function App() {
     if (!stockActionDraft) return
     recordShelfMovement(stockActionDraft.stockItemId, stockActionDraft.mode, stockActionDraft.quantity, stockActionDraft.notes)
     setStockActionDraft(null)
+  }
+
+  const setExactStockCount = (stockItemId: string, nextCount: number) => {
+    const item = data.stockItems.find((entry) => entry.id === stockItemId)
+    if (!item) return
+    const safeNextCount = Math.max(0, nextCount || 0)
+    const stock = calculateStock(item, data.dailyReports, data.stockMovements)
+    const difference = safeNextCount - stock.currentStock
+    if (Math.abs(difference) < 0.001) {
+      setStockFeedback({ stockItemId, message: `${item.name} is already set to ${formatNumber(safeNextCount)} ${item.unit}.` })
+      return
+    }
+    const movement: StockMovement = {
+      id: createId('movement'),
+      stockItemId,
+      date: toInputDate(),
+      type: difference > 0 ? 'Adjustment +' : 'Adjustment -',
+      quantity: Math.abs(difference),
+      notes: `Set shelf count to ${formatNumber(safeNextCount)} ${item.unit}`,
+    }
+    setData((current) => ({ ...current, stockMovements: [movement, ...current.stockMovements] }))
+    setStockFeedback({ stockItemId, movementId: movement.id, message: `${item.name} shelf set to ${formatNumber(safeNextCount)} ${item.unit}.` })
   }
 
   const undoStockMovement = (movementId: string, requireConfirmation = false) => {
@@ -1431,17 +1459,31 @@ function App() {
                 ))}
               </div>
               <div className="shelf-grid">
-                {filteredInventoryCards.map((item) => (
-                  <StockShelfCard
-                    feedback={stockFeedback?.stockItemId === item.id ? stockFeedback : undefined}
-                    item={item}
-                    key={item.id}
-                    onQuickAdd={(quantity) => recordShelfMovement(item.id, 'add', quantity)}
-                    onRefill={() => openStockAction(item.id, 'add')}
-                    onUndoMovement={(movementId) => undoStockMovement(movementId)}
-                    onUse={() => openStockAction(item.id, 'use')}
-                  />
-                ))}
+                {filteredInventoryCards.map((item) => {
+                  const stockItem = data.stockItems.find((entry) => entry.id === item.id)
+                  const latestMovement = data.stockMovements.find((movement) => movement.stockItemId === item.id)
+                  if (!stockItem) return null
+                  return (
+                    <StockShelfCard
+                      feedback={stockFeedback?.stockItemId === item.id ? stockFeedback : undefined}
+                      isEditing={editingStockId === item.id}
+                      item={item}
+                      key={item.id}
+                      latestMovement={latestMovement}
+                      onEditToggle={() => setEditingStockId((current) => (current === item.id ? null : item.id))}
+                      onQuickAdd={(quantity) => recordShelfMovement(item.id, 'add', quantity)}
+                      onQuickUse={(quantity) => recordShelfMovement(item.id, 'use', quantity)}
+                      onRefill={() => openStockAction(item.id, 'add')}
+                      onRemove={() => removeStockItem(stockItem)}
+                      onSetExactCount={(quantity) => setExactStockCount(item.id, quantity)}
+                      onUndoMovement={(movementId) => undoStockMovement(movementId)}
+                      onUpdate={(patch) => updateStock(item.id, patch)}
+                      onUse={() => openStockAction(item.id, 'use')}
+                      products={data.products}
+                      stockItem={stockItem}
+                    />
+                  )
+                })}
               </div>
               {!filteredInventoryCards.length && <p className="muted">No stock items match this filter.</p>}
             </Panel>
@@ -1531,100 +1573,103 @@ function App() {
               </div>
             </Panel>
 
-            <div className="table-wrap stock-table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th className="action-column">Action</th>
-                    <th>Product / ingredient</th>
-                    <th>Unit</th>
-                    <th>Starting</th>
-                    <th>Quick added</th>
-                    <th>Logged added</th>
-                    <th>Used/sold</th>
-                    <th>Manual used</th>
-                    <th>Current</th>
-                    <th>Minimum</th>
-                    <th>Cost/unit</th>
-                    <th>Alert</th>
-                    <th>Linked product</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.stockItems.map((item) => {
-                    const stock = calculateStock(item, data.dailyReports, data.stockMovements)
-                    return (
-                      <tr key={item.id}>
-                        <td className="action-column">
-                          <button className="remove-button" type="button" onClick={() => removeStockItem(item)}>
-                            Remove
-                          </button>
-                        </td>
-                        <td>
-                          <input value={item.name} onChange={(event) => updateStock(item.id, { name: event.target.value })} />
-                        </td>
-                        <td>
-                          <input value={item.unit} onChange={(event) => updateStock(item.id, { unit: event.target.value })} />
-                        </td>
-                        <td>
-                          <input type="number" min="0" value={item.startingStock} onChange={(event) => updateStock(item.id, { startingStock: numberValue(event.target.value) })} />
-                        </td>
-                        <td>
-                          <input type="number" min="0" value={item.addedStock} onChange={(event) => updateStock(item.id, { addedStock: numberValue(event.target.value) })} />
-                        </td>
-                        <td>{formatNumber(stock.movementAdded)}</td>
-                        <td>
-                          {formatNumber(stock.usedStock)}
-                          {item.linkedProductId && <span className="subtle">sales: {formatNumber(stock.linkedSales)}</span>}
-                          {stock.movementRemoved > 0 && <span className="subtle">log: {formatNumber(stock.movementRemoved)}</span>}
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.manualUsedStock}
-                            onChange={(event) => updateStock(item.id, { manualUsedStock: numberValue(event.target.value) })}
-                          />
-                        </td>
-                        <td>{formatNumber(stock.currentStock)}</td>
-                        <td>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.minimumStockLevel}
-                            onChange={(event) => updateStock(item.id, { minimumStockLevel: numberValue(event.target.value) })}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.costPerUnit}
-                            onChange={(event) => updateStock(item.id, { costPerUnit: numberValue(event.target.value) })}
-                          />
-                        </td>
-                        <td>{stock.reorderAlert ? <span className="pill warn">Order soon</span> : <span className="pill ok">OK</span>}</td>
-                        <td>
-                          <select value={item.linkedProductId ?? ''} onChange={(event) => updateStock(item.id, { linkedProductId: event.target.value || undefined })}>
-                            <option value="">Manual</option>
-                            {data.products.map((product) => (
-                              <option value={product.id} key={product.id}>
-                                {product.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input value={item.notes} onChange={(event) => updateStock(item.id, { notes: event.target.value })} />
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <details className="advanced-stock-editor">
+              <summary>Advanced spreadsheet editor</summary>
+              <div className="table-wrap stock-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="action-column">Action</th>
+                      <th>Product / ingredient</th>
+                      <th>Unit</th>
+                      <th>Starting</th>
+                      <th>Quick added</th>
+                      <th>Logged added</th>
+                      <th>Used/sold</th>
+                      <th>Manual used</th>
+                      <th>Current</th>
+                      <th>Minimum</th>
+                      <th>Cost/unit</th>
+                      <th>Alert</th>
+                      <th>Linked product</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.stockItems.map((item) => {
+                      const stock = calculateStock(item, data.dailyReports, data.stockMovements)
+                      return (
+                        <tr key={item.id}>
+                          <td className="action-column">
+                            <button className="remove-button" type="button" onClick={() => removeStockItem(item)}>
+                              Remove
+                            </button>
+                          </td>
+                          <td>
+                            <input value={item.name} onChange={(event) => updateStock(item.id, { name: event.target.value })} />
+                          </td>
+                          <td>
+                            <input value={item.unit} onChange={(event) => updateStock(item.id, { unit: event.target.value })} />
+                          </td>
+                          <td>
+                            <input type="number" min="0" value={item.startingStock} onChange={(event) => updateStock(item.id, { startingStock: numberValue(event.target.value) })} />
+                          </td>
+                          <td>
+                            <input type="number" min="0" value={item.addedStock} onChange={(event) => updateStock(item.id, { addedStock: numberValue(event.target.value) })} />
+                          </td>
+                          <td>{formatNumber(stock.movementAdded)}</td>
+                          <td>
+                            {formatNumber(stock.usedStock)}
+                            {item.linkedProductId && <span className="subtle">sales: {formatNumber(stock.linkedSales)}</span>}
+                            {stock.movementRemoved > 0 && <span className="subtle">log: {formatNumber(stock.movementRemoved)}</span>}
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.manualUsedStock}
+                              onChange={(event) => updateStock(item.id, { manualUsedStock: numberValue(event.target.value) })}
+                            />
+                          </td>
+                          <td>{formatNumber(stock.currentStock)}</td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.minimumStockLevel}
+                              onChange={(event) => updateStock(item.id, { minimumStockLevel: numberValue(event.target.value) })}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.costPerUnit}
+                              onChange={(event) => updateStock(item.id, { costPerUnit: numberValue(event.target.value) })}
+                            />
+                          </td>
+                          <td>{stock.reorderAlert ? <span className="pill warn">Order soon</span> : <span className="pill ok">OK</span>}</td>
+                          <td>
+                            <select value={item.linkedProductId ?? ''} onChange={(event) => updateStock(item.id, { linkedProductId: event.target.value || undefined })}>
+                              <option value="">Manual</option>
+                              {data.products.map((product) => (
+                                <option value={product.id} key={product.id}>
+                                  {product.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input value={item.notes} onChange={(event) => updateStock(item.id, { notes: event.target.value })} />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </Screen>
         )}
 
@@ -2235,19 +2280,43 @@ function RestockMissionPanel({ items }: { items: InventoryCard[] }) {
 
 function StockShelfCard({
   feedback,
+  isEditing,
   item,
+  latestMovement,
+  onEditToggle,
   onQuickAdd,
+  onQuickUse,
   onRefill,
+  onRemove,
+  onSetExactCount,
   onUndoMovement,
+  onUpdate,
   onUse,
+  products,
+  stockItem,
 }: {
   feedback?: StockFeedback
+  isEditing: boolean
   item: InventoryCard
+  latestMovement?: StockMovement
+  onEditToggle: () => void
   onQuickAdd: (quantity: number) => void
+  onQuickUse: (quantity: number) => void
   onRefill: () => void
+  onRemove: () => void
+  onSetExactCount: (quantity: number) => void
   onUndoMovement: (movementId: string) => void
+  onUpdate: (patch: Partial<StockItem>) => void
   onUse: () => void
+  products: Product[]
+  stockItem: StockItem
 }) {
+  const [exactCount, setExactCount] = useState(() => String(Math.max(0, item.currentStock)))
+
+  useEffect(() => {
+    setExactCount(String(Math.max(0, item.currentStock)))
+  }, [item.currentStock])
+
   return (
     <article className={`shelf-card ${item.status}`}>
       <header>
@@ -2258,6 +2327,21 @@ function StockShelfCard({
         <span className="shelf-status">{item.label}</span>
       </header>
       <ShelfVisual item={item} />
+      <div className="shelf-count-setter" aria-label={`${item.name} stock controls`}>
+        <label>
+          Set shelf count
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={exactCount}
+            onChange={(event) => setExactCount(event.target.value)}
+          />
+        </label>
+        <button className="secondary-button" type="button" onClick={() => onSetExactCount(numberValue(exactCount))}>
+          Set
+        </button>
+      </div>
       <div className="shelf-stats">
         <span>
           Current
@@ -2287,12 +2371,21 @@ function StockShelfCard({
       <div className="shelf-actions">
         <button className="primary-button" type="button" onClick={onRefill}>Refill</button>
         <button className="secondary-button" type="button" onClick={onUse}>Use stock</button>
+        <button className="secondary-button" type="button" onClick={onEditToggle}>{isEditing ? 'Close edit' : 'Edit shelf'}</button>
       </div>
       <div className="quick-refill-row">
         {[1, 5, 10].map((quantity) => (
           <button key={quantity} type="button" onClick={() => onQuickAdd(quantity)}>+{quantity}</button>
         ))}
+        {[1, 5].map((quantity) => (
+          <button className="quick-use" key={`use-${quantity}`} type="button" onClick={() => onQuickUse(quantity)}>-{quantity}</button>
+        ))}
       </div>
+      {latestMovement && (
+        <button className="undo-last-button" type="button" onClick={() => onUndoMovement(latestMovement.id)}>
+          Undo last change ({latestMovement.type} {formatNumber(latestMovement.quantity)})
+        </button>
+      )}
       {feedback && (
         <div className="shelf-feedback">
           <span>{feedback.message}</span>
@@ -2301,6 +2394,53 @@ function StockShelfCard({
               Undo
             </button>
           ) : null}
+        </div>
+      )}
+      {isEditing && (
+        <div className="shelf-edit-panel">
+          <label>
+            Item name
+            <input value={stockItem.name} onChange={(event) => onUpdate({ name: event.target.value })} />
+          </label>
+          <label>
+            Unit
+            <input value={stockItem.unit} onChange={(event) => onUpdate({ unit: event.target.value })} placeholder="tubs, pcs, boxes..." />
+          </label>
+          <label>
+            Starting count
+            <input type="number" min="0" step="0.01" value={stockItem.startingStock} onChange={(event) => onUpdate({ startingStock: numberValue(event.target.value) })} />
+          </label>
+          <label>
+            Minimum before warning
+            <input type="number" min="0" step="0.01" value={stockItem.minimumStockLevel} onChange={(event) => onUpdate({ minimumStockLevel: numberValue(event.target.value) })} />
+          </label>
+          <label>
+            Cost per unit
+            <input type="number" min="0" step="0.01" value={stockItem.costPerUnit} onChange={(event) => onUpdate({ costPerUnit: numberValue(event.target.value) })} />
+          </label>
+          <label>
+            Linked sale item
+            <select value={stockItem.linkedProductId ?? ''} onChange={(event) => onUpdate({ linkedProductId: event.target.value || undefined })}>
+              <option value="">Manual stock</option>
+              {products.map((product) => (
+                <option value={product.id} key={product.id}>
+                  {product.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="full-width">
+            Notes
+            <input value={stockItem.notes} onChange={(event) => onUpdate({ notes: event.target.value })} placeholder="Supplier, size, where it is stored..." />
+          </label>
+          <div className="shelf-edit-actions">
+            <button className="remove-button" type="button" onClick={onRemove}>
+              Remove shelf
+            </button>
+            <button className="secondary-button" type="button" onClick={onEditToggle}>
+              Done
+            </button>
+          </div>
         </div>
       )}
     </article>
