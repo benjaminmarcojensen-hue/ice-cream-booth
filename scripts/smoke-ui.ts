@@ -8,7 +8,9 @@ await page.goto('http://127.0.0.1:5173/', { waitUntil: 'commit', timeout: 10000 
 await page.getByRole('button', { name: 'Dashboard' }).waitFor({ timeout: 20000 })
 const text = async () => ((await page.textContent('body')) ?? '').replace(/\s+/g, ' ')
 assert((await text()).includes('Shop Quest'), 'Dashboard should show the gamified Shop Quest panel')
-await page.getByRole('button', { name: 'Daily Report' }).click()
+assert((await text()).includes('Business Health'), 'Dashboard should show the business health meter')
+assert((await text()).includes('Product Performance Cards'), 'Dashboard should show product performance cards')
+await page.getByRole('button', { name: 'Daily Report', exact: true }).click()
 await page.locator('input[type="date"]').fill('2026-05-23')
 
 await page.getByText('Total revenue').waitFor()
@@ -19,15 +21,16 @@ const drysRow = page.locator('tr').filter({ hasText: 'Drys' })
 await drysRow.locator('input[type="number"]').first().fill('4')
 assert((await text()).includes('4.067,00 kr.'), 'Changing Drys quantity should update total revenue')
 
-await page.getByRole('button', { name: 'Expenses' }).click()
+await page.getByRole('button', { name: 'Expenses', exact: true }).click()
 await page.getByRole('button', { name: 'Cash register' }).click()
 await page.getByLabel('Quick expense amount in DKK').fill('399')
 await page.getByRole('button', { name: 'Save expense' }).click()
 assert((await text()).includes('Cash register system'), 'Expenses should support cash register system entries')
 assert((await text()).includes('399,00 kr.'), 'Expense amounts should show as DKK')
 
-await page.getByRole('button', { name: 'Stock' }).click()
+await page.getByRole('button', { name: 'Stock', exact: true }).click()
 assert((await page.textContent('body'))?.includes('Order soon'), 'Low stock should show Order soon')
+assert((await page.textContent('body'))?.includes('Inventory Screen'), 'Stock should show inventory-style cards')
 await page.getByRole('button', { name: 'Add ice cream tub' }).click()
 const stockNames = await page
   .locator('tbody tr')
@@ -40,7 +43,7 @@ page.once('dialog', async (dialog) => {
 await page.getByRole('button', { name: 'Remove' }).first().click()
 assert(!(await page.textContent('body'))?.includes('Vanilje ice cream tub'), 'Stock rows should be removable')
 
-await page.getByRole('button', { name: 'Export' }).click()
+await page.getByRole('button', { name: 'Export', exact: true }).click()
 const csvDownload = page.waitForEvent('download')
 await page.getByRole('button', { name: 'Daily reports CSV' }).click()
 assert((await csvDownload).suggestedFilename().endsWith('.csv'), 'Daily report CSV should download')

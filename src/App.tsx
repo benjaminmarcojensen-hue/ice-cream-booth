@@ -12,7 +12,6 @@ import {
   getLowStockItems,
   getMonthRange,
   getProductCost,
-  getReportStreak,
   getWeekRange,
   monthKey,
   splitVat,
@@ -32,6 +31,16 @@ import {
 import { parseDailyReportText } from './parser'
 import { loadCloudConfig, loadData, normalizeData, resetData, saveCloudConfig, saveData } from './storage'
 import { loadCloudData, saveCloudData, testCloudConnection } from './cloudStorage'
+import {
+  calculateBusinessXp,
+  getAchievements,
+  getBusinessHealth,
+  getBusinessStreaks,
+  getInventoryCards,
+  getLevelProgress,
+  getProductPerformance,
+} from './gamification'
+import type { Achievement } from './gamification'
 import type {
   AppData,
   CloudConfig,
@@ -39,6 +48,7 @@ import type {
   Expense,
   ExpenseType,
   PaymentMethod,
+  ReportTotals,
   Product,
   RecurringExpense,
   StockItem,
@@ -250,6 +260,44 @@ const recurringExpenseDate = (month: string, dayOfMonth: number) => {
 
 const achievementUnlocked = (condition: boolean) => (condition ? 'unlocked' : 'locked')
 
+type DayResult = {
+  report: DailyReport
+  totals: ReportTotals
+  bestSeller: string
+  starRating: number
+  message: string
+  stockWarnings: number
+}
+
+const getDayResult = (report: DailyReport, totals: ReportTotals, dailyGoal: number, stockWarnings: number): DayResult => {
+  const bestLine = [...totals.lines].sort((a, b) => b.quantity - a.quantity)[0]
+  const starRating = Math.min(
+    5,
+    1 +
+      (totals.totalRevenue >= dailyGoal ? 1 : 0) +
+      (totals.netProfit > 0 ? 1 : 0) +
+      (totals.totalItems >= 25 ? 1 : 0) +
+      (stockWarnings === 0 ? 1 : 0),
+  )
+  const message =
+    stockWarnings > 0
+      ? 'Stock is getting low. Restock mission unlocked.'
+      : totals.netProfit > 0 && totals.totalRevenue >= dailyGoal
+        ? 'Great day at the booth. Profit streak continues.'
+        : totals.netProfit > 0
+          ? 'Nice work. The booth finished in profit.'
+          : 'Day saved. Tomorrow is a fresh mission.'
+
+  return {
+    report,
+    totals,
+    bestSeller: bestLine?.product.name ?? 'No sales yet',
+    starRating,
+    message,
+    stockWarnings,
+  }
+}
+
 function App() {
   const [data, setData] = useState<AppData>(() => loadData())
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => loadCloudConfig())
@@ -269,6 +317,7 @@ function App() {
   const [importText, setImportText] = useState('')
   const [parsedDraft, setParsedDraft] = useState<{ report: DailyReport; expenses: Expense[] } | null>(null)
   const [saveMessage, setSaveMessage] = useState('')
+  const [dayResult, setDayResult] = useState<DayResult | null>(null)
   const skipNextCloudSave = useRef(false)
 
   useEffect(() => {
@@ -338,24 +387,32 @@ function App() {
   }, [cloudConfig.enabled, cloudConfig.supabaseAnonKey, cloudConfig.supabaseUrl, cloudLoaded, data])
 
   const monthSummary = useMemo(() => calculateMonthlySummary(data, selectedMonth), [data, selectedMonth])
+  const today = toInputDate()
   const dashboardRange = useMemo(() => getDashboardRange(dashboardPeriod), [dashboardPeriod])
   const dashboardSummary = useMemo(
     () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
     [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
   )
   const lowStockItems = getLowStockItems(data)
+  const levelProgress = useMemo(() => getLevelProgress(calculateBusinessXp(data)), [data])
+  const streaks = useMemo(() => getBusinessStreaks(data, today), [data, today])
+  const businessHealth = useMemo(() => getBusinessHealth(data, dashboardSummary, dashboardRange.start, dashboardRange.end), [dashboardRange.end, dashboardRange.start, dashboardSummary, data])
+  const achievements = useMemo(() => getAchievements(data, levelProgress), [data, levelProgress])
+  const unlockedAchievements = achievements.filter((achievement) => achievement.unlocked)
+  const productPerformance = useMemo(() => getProductPerformance(data, dashboardRange.start, dashboardRange.end, today), [dashboardRange.end, dashboardRange.start, data, today])
+  const inventoryCards = useMemo(() => getInventoryCards(data), [data])
   const shopQuest = useMemo(() => {
     const periodGoal = data.settings.dailyRevenueGoal * getDashboardGoalMultiplier(dashboardPeriod)
     const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
     return {
       periodGoal,
       goalProgress,
-      reportStreak: getReportStreak(data.dailyReports),
-      scoopScore: Math.max(0, Math.round(dashboardSummary.netProfit / 10 + dashboardSummary.totalItems)),
+      reportStreak: streaks.report,
+      scoopScore: Math.max(0, Math.round(dashboardSummary.netProfit / 10 + dashboardSummary.totalItems + levelProgress.xpIntoLevel / 5)),
       completedReports: data.dailyReports.filter((report) => report.items.some((item) => item.quantity > 0)).length,
       hasLowStock: lowStockItems.length > 0,
     }
-  }, [dashboardPeriod, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, lowStockItems.length])
+  }, [dashboardPeriod, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, levelProgress.xpIntoLevel, lowStockItems.length, streaks.report])
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
@@ -400,13 +457,16 @@ function App() {
       items: draftReport.items.map((item) => ({ ...item, quantity: Math.max(0, item.quantity || 0) })),
     }
     const expenses = draftExpenses.map((expense) => ({ ...expense, date: report.date, reportId: report.id, amount: Math.max(0, expense.amount || 0) }))
+    const nextData = {
+      ...data,
+      dailyReports: [...data.dailyReports.filter((entry) => entry.date !== report.date), report].sort((a, b) => a.date.localeCompare(b.date)),
+      expenses: [...data.expenses.filter((expense) => expense.reportId !== report.id), ...expenses],
+    }
+    const savedTotals = calculateReportTotals(report, nextData.products, nextData.expenses, nextData.settings)
 
-    setData((current) => ({
-      ...current,
-      dailyReports: [...current.dailyReports.filter((entry) => entry.date !== report.date), report].sort((a, b) => a.date.localeCompare(b.date)),
-      expenses: [...current.expenses.filter((expense) => expense.reportId !== report.id), ...expenses],
-    }))
-    setSaveMessage(`Saved ${report.date}: ${formatKr(calculateReportTotals(report, data.products, expenses, data.settings).totalRevenue)}`)
+    setData(nextData)
+    setDayResult(getDayResult(report, savedTotals, data.settings.dailyRevenueGoal, getLowStockItems(nextData).length))
+    setSaveMessage(`Saved ${report.date}: ${formatKr(savedTotals.totalRevenue)}`)
     setTimeout(() => setSaveMessage(''), 2500)
   }
 
@@ -592,6 +652,42 @@ function App() {
       <main className="content">
         {activeTab === 'dashboard' && (
           <Screen title="Dashboard" kicker={`${dashboardRange.start} to ${dashboardRange.end}`}>
+            <section className="tycoon-hero" aria-label="Ice Cream Booth Tycoon status">
+              <div className="level-card">
+                <span className="eyebrow">Business Level</span>
+                <div className="level-title">
+                  <strong>Level {levelProgress.level}</strong>
+                  <b>{levelProgress.name}</b>
+                </div>
+                <div className="xp-progress" aria-label="XP progress">
+                  <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
+                </div>
+                <p>
+                  {formatNumber(levelProgress.xp, 0)} XP
+                  {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
+                </p>
+              </div>
+              <div className="health-card">
+                <span className="eyebrow">Business Health</span>
+                <div className="health-meter" style={{ '--health': `${businessHealth.score}%` } as React.CSSProperties}>
+                  <strong>{businessHealth.score}</strong>
+                </div>
+                <b>{businessHealth.label}</b>
+                <small>Margin, stock, expenses, and sales rhythm.</small>
+              </div>
+              <div className="mission-card">
+                <span className="eyebrow">Daily Mission</span>
+                <strong>Upgrade your booth</strong>
+                <small>{formatNumber(unlockedAchievements.length, 0)} achievement badges unlocked.</small>
+                <div className="mission-actions">
+                  <button type="button" onClick={() => setActiveTab('daily')}>Enter daily report</button>
+                  <button type="button" onClick={() => setActiveTab('summary')}>View reports</button>
+                  <button type="button" onClick={() => setActiveTab('stock')}>Manage stock</button>
+                  <button type="button" onClick={() => setActiveTab('expenses')}>Add expenses</button>
+                </div>
+              </div>
+            </section>
+
             <div className="period-filter" role="group" aria-label="Dashboard period">
               {dashboardPeriods.map((period) => (
                 <button
@@ -605,13 +701,14 @@ function App() {
               ))}
             </div>
             <div className="metrics-grid">
-              <Metric label="Sales incl. moms" value={formatKr(dashboardSummary.totalRevenue, 0)} />
-              <Metric label="Sales ex. moms" value={formatKr(dashboardSummary.netRevenue, 0)} />
-              <Metric label="Expenses incl. moms" value={formatKr(dashboardSummary.expenses, 0)} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
-              <Metric label="Net profit ex. moms" value={formatKr(dashboardSummary.netProfit, 0)} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
-              <Metric label="Moms payable" value={formatKr(dashboardSummary.vatPayable, 0)} tone="warn" />
+              <Metric label="Sales Score" value={formatKr(dashboardSummary.totalRevenue, 0)} />
+              <Metric label="Profit" value={formatKr(dashboardSummary.netProfit, 0)} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Profit margin" value={`${formatNumber(dashboardSummary.averageProfitMargin * 100, 1)}%`} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
+              <Metric label="Expenses" value={formatKr(dashboardSummary.expenses, 0)} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
               <Metric label="Items sold" value={formatNumber(dashboardSummary.totalItems, 0)} />
               <Metric label="Best seller" value={dashboardSummary.bestSellingProduct} />
+              <Metric label="Stock alerts" value={lowStockItems.length} tone={lowStockItems.length > 0 ? 'warn' : 'good'} />
+              <Metric label="Scoop score" value={formatNumber(shopQuest.scoopScore, 0)} />
             </div>
 
             <Panel title="Shop Quest" icon={<IceCreamBowl size={18} />}>
@@ -635,6 +732,11 @@ function App() {
                   <strong>{formatNumber(shopQuest.scoopScore, 0)}</strong>
                   <small>Profit and items sold turned into a friendly score.</small>
                 </div>
+              </div>
+              <div className="streak-grid">
+                <StreakCard label="Report Streak" value={streaks.report} note="Days entered in a row" />
+                <StreakCard label="Profit Streak" value={streaks.profitable} note="Profitable days in a row" />
+                <StreakCard label="Stock Calm" value={streaks.stockCalm} note="Tracked days without waste" />
               </div>
               <div className="badge-row">
                 <span className={`achievement ${achievementUnlocked(shopQuest.completedReports > 0)}`}>First report</span>
@@ -668,6 +770,32 @@ function App() {
                 <MiniBars rows={dashboardSummary.productBreakdown.map((entry) => ({ label: entry.product, value: entry.quantity }))} />
               </Panel>
             </div>
+
+            <Panel title="Recent Achievements" icon={<IceCreamBowl size={18} />}>
+              <AchievementGrid achievements={achievements} />
+            </Panel>
+
+            <Panel title="Product Performance Cards" icon={<BarChart3 size={18} />}>
+              <div className="product-card-grid">
+                {productPerformance.map((entry) => (
+                  <article className={`product-card ${entry.badge.toLowerCase().replaceAll(' ', '-')}`} key={entry.product.id}>
+                    <header>
+                      <span>{entry.product.category}</span>
+                      <b>{entry.badge}</b>
+                    </header>
+                    <h3>{entry.product.name}</h3>
+                    <div className="product-stats">
+                      <span>Price <strong>{formatKr(entry.price, 0)}</strong></span>
+                      <span>Cost <strong>{formatKr(entry.cost)}</strong></span>
+                      <span>Profit/sale <strong>{formatKr(entry.profitPerSale)}</strong></span>
+                      <span>Sold today <strong>{formatNumber(entry.unitsSoldToday, 0)}</strong></span>
+                      <span>Total sales <strong>{formatKr(entry.totalRevenue, 0)}</strong></span>
+                      <span>Margin <strong>{formatNumber(entry.margin * 100, 1)}%</strong></span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </Panel>
           </Screen>
         )}
 
@@ -1183,6 +1311,28 @@ function App() {
               <p className="muted">Use separate stock rows for each tub flavor, cone type, topping, packaging item, or cleaning supply.</p>
             </Panel>
 
+            <Panel title="Inventory Screen" icon={<PackageCheck size={18} />}>
+              <div className="inventory-grid">
+                {inventoryCards.map((item) => (
+                  <article className={`inventory-card ${item.status}`} key={item.id}>
+                    <header>
+                      <strong>{item.name}</strong>
+                      <span>{item.label}</span>
+                    </header>
+                    <div className="inventory-bar" aria-label={`${item.name} stock level`}>
+                      <i style={{ width: `${Math.round(item.progress * 100)}%` }} />
+                    </div>
+                    <div className="inventory-meta">
+                      <span>Current: {formatNumber(item.currentStock)} {item.unit}</span>
+                      <span>Minimum: {formatNumber(item.minimumStock)} {item.unit}</span>
+                      <span>Used: {formatNumber(item.usedStock)} {item.unit}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {!inventoryCards.length && <p className="muted">Add stock items to build your inventory screen.</p>}
+            </Panel>
+
             <Panel title="Stock Movement Log" icon={<ReceiptText size={18} />}>
               <div className="movement-editor">
                 <label>
@@ -1509,6 +1659,7 @@ function App() {
           </Screen>
         )}
       </main>
+      {dayResult && <DayCompleteModal result={dayResult} onClose={() => setDayResult(null)} />}
     </div>
   )
 
@@ -1558,6 +1709,56 @@ function Metric({ label, value, tone = 'neutral' }: { label: string; value: stri
     <div className={`metric ${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  )
+}
+
+function StreakCard({ label, value, note }: { label: string; value: number; note: string }) {
+  return (
+    <div className="streak-card">
+      <span>{label}</span>
+      <strong>{formatNumber(value, 0)} day{value === 1 ? '' : 's'}</strong>
+      <small>{note}</small>
+    </div>
+  )
+}
+
+function AchievementGrid({ achievements }: { achievements: Achievement[] }) {
+  return (
+    <div className="achievement-grid">
+      {achievements.map((achievement) => (
+        <article className={`achievement-tile ${achievement.unlocked ? 'unlocked' : 'locked'}`} key={achievement.id}>
+          <span>{achievement.unlocked ? 'Unlocked' : 'Locked'}</span>
+          <strong>{achievement.title}</strong>
+          <small>{achievement.description}</small>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function DayCompleteModal({ result, onClose }: { result: DayResult; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="day-complete-modal" role="dialog" aria-modal="true" aria-labelledby="day-complete-title">
+        <span className="eyebrow">Day Complete</span>
+        <h2 id="day-complete-title">Today Score</h2>
+        <p>{result.message}</p>
+        <div className="rating-row">
+          <strong>{result.starRating} / 5 stars</strong>
+          <span>{result.report.date}</span>
+        </div>
+        <div className="result-grid">
+          <Metric label="Revenue" value={formatKr(result.totals.totalRevenue, 0)} />
+          <Metric label="Profit" value={formatKr(result.totals.netProfit, 0)} tone={result.totals.netProfit >= 0 ? 'good' : 'bad'} />
+          <Metric label="Expenses" value={formatKr(result.totals.expenses, 0)} tone={result.totals.expenses > 0 ? 'warn' : 'neutral'} />
+          <Metric label="Best Seller" value={result.bestSeller} />
+          <Metric label="Stock Warnings" value={result.stockWarnings} tone={result.stockWarnings > 0 ? 'warn' : 'good'} />
+        </div>
+        <button className="primary-button" type="button" onClick={onClose}>
+          Continue
+        </button>
+      </section>
     </div>
   )
 }

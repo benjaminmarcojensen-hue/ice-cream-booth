@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { calculateDateRangeSummary, calculateReportTotals, calculateStock, countDaysInclusive, getLowStockItems, getMonthRange, getReportStreak, getWeekRange } from '../src/calculations.ts'
 import { expenseTypes, seedData } from '../src/data.ts'
 import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
+import { calculateBusinessXp, getAchievements, getBusinessHealth, getBusinessStreaks, getInventoryCards, getLevelProgress, getProductPerformance } from '../src/gamification.ts'
 import { parseDailyReportText } from '../src/parser.ts'
 import { normalizeData } from '../src/storage.ts'
 import type { DailyReport } from '../src/types.ts'
@@ -24,6 +25,14 @@ assert.equal(countDaysInclusive('2026-05-18', '2026-05-24'), 7, 'Inclusive day c
 assert.equal(getReportStreak(seedData.dailyReports, '2026-05-23'), 1, 'Report streak should count consecutive report days')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 4060, 'Date range dashboard summary should include the seed report')
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
+const seedXp = calculateBusinessXp(seedData)
+assert(seedXp > 0, 'Business XP should be earned from seeded reports')
+assert.equal(getLevelProgress(seedXp).level, 2, 'Seed report should move the booth to Local Favorite')
+assert.equal(getBusinessStreaks(seedData, '2026-05-23').report, 1, 'Gamified report streak should use saved sales reports')
+assert(getAchievements(seedData, getLevelProgress(seedXp)).some((achievement) => achievement.id === 'first-sale' && achievement.unlocked), 'First Sale achievement should unlock from seed report')
+assert.equal(getBusinessHealth(seedData, calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24'), '2026-05-18', '2026-05-24').score > 0, true, 'Business health should calculate a positive score')
+assert(getProductPerformance(seedData, '2026-05-18', '2026-05-24', '2026-05-23').some((entry) => entry.badge === 'Best Seller'), 'Product performance should identify a best seller')
+assert(getInventoryCards(seedData).some((entry) => entry.label === 'Restock Soon' || entry.label === 'Critical'), 'Inventory cards should surface low stock states')
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 4000, shopQuestGoalVersion: 0 } }).settings.dailyRevenueGoal, 800, 'Old saved Shop Quest goal should migrate to 800 kr.')
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 1200, shopQuestGoalVersion: 1 } }).settings.dailyRevenueGoal, 1200, 'User-edited current goal should be preserved')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
