@@ -31,12 +31,13 @@ import { loadCloudConfig, loadData, normalizeData, resetData, saveCloudConfig, s
 import { loadCloudData, saveCloudData, testCloudConnection } from './cloudStorage'
 import {
   calculateBusinessXp,
+  calculateReportXp,
   getAchievements,
   getBusinessStreaks,
   getInventoryCards,
   getLevelProgress,
 } from './gamification'
-import type { Achievement } from './gamification'
+import type { Achievement, LevelProgress } from './gamification'
 import type {
   AppData,
   CloudConfig,
@@ -241,23 +242,41 @@ type DayResult = {
   report: DailyReport
   totals: ReportTotals
   bestSeller: string
+  worstSeller: string
   starRating: number
   message: string
   stockWarnings: number
+  stockWarningNames: string[]
+  xpEarned: number
+  levelProgress: LevelProgress
+  achievementsUnlockedToday: Achievement[]
 }
 
-const getDayResult = (report: DailyReport, totals: ReportTotals, dailyGoal: number, stockWarnings: number): DayResult => {
+const getDayResult = (
+  report: DailyReport,
+  totals: ReportTotals,
+  dailyGoal: number,
+  stockWarningNames: string[],
+  xpEarned: number,
+  levelProgress: LevelProgress,
+  achievementsUnlockedToday: Achievement[],
+): DayResult => {
   const bestLine = [...totals.lines].sort((a, b) => b.quantity - a.quantity)[0]
+  const worstLine = totals.lines.filter((line) => line.quantity > 0).sort((a, b) => a.quantity - b.quantity)[0]
+  const margin = totals.netRevenue > 0 ? totals.netProfit / totals.netRevenue : 0
+  const stockWarnings = stockWarningNames.length
   const starRating = Math.min(
     5,
     1 +
       (totals.totalRevenue >= dailyGoal ? 1 : 0) +
       (totals.netProfit > 0 ? 1 : 0) +
-      (totals.totalItems >= 25 ? 1 : 0) +
+      (margin >= 0.35 ? 1 : 0) +
       (stockWarnings === 0 ? 1 : 0),
   )
   const message =
-    stockWarnings > 0
+    achievementsUnlockedToday.length > 0
+      ? 'New achievement unlocked. The booth is leveling up.'
+      : stockWarnings > 0
       ? 'Stock is getting low. Restock mission unlocked.'
       : totals.netProfit > 0 && totals.totalRevenue >= dailyGoal
         ? 'Great day at the booth. Profit streak continues.'
@@ -269,9 +288,14 @@ const getDayResult = (report: DailyReport, totals: ReportTotals, dailyGoal: numb
     report,
     totals,
     bestSeller: bestLine?.product.name ?? 'No sales yet',
+    worstSeller: worstLine?.product.name ?? 'No sales yet',
     starRating,
     message,
     stockWarnings,
+    stockWarningNames,
+    xpEarned,
+    levelProgress,
+    achievementsUnlockedToday,
   }
 }
 
@@ -437,9 +461,14 @@ function App() {
       expenses: [...data.expenses.filter((expense) => expense.reportId !== report.id), ...expenses],
     }
     const savedTotals = calculateReportTotals(report, nextData.products, nextData.expenses, nextData.settings)
+    const xpEarned = calculateReportXp(savedTotals)
+    const nextLevelProgress = getLevelProgress(calculateBusinessXp(nextData))
+    const previousAchievementIds = new Set(getAchievements(data, getLevelProgress(calculateBusinessXp(data))).filter((achievement) => achievement.unlocked).map((achievement) => achievement.id))
+    const achievementsUnlockedToday = getAchievements(nextData, nextLevelProgress).filter((achievement) => achievement.unlocked && !previousAchievementIds.has(achievement.id))
+    const stockWarningNames = getLowStockItems(nextData).map(({ item }) => item.name)
 
     setData(nextData)
-    setDayResult(getDayResult(report, savedTotals, data.settings.dailyRevenueGoal, getLowStockItems(nextData).length))
+    setDayResult(getDayResult(report, savedTotals, data.settings.dailyRevenueGoal, stockWarningNames, xpEarned, nextLevelProgress, achievementsUnlockedToday))
     setSaveMessage(`Saved ${report.date}: ${formatKr(savedTotals.totalRevenue)}`)
     setTimeout(() => setSaveMessage(''), 2500)
   }
@@ -1682,23 +1711,81 @@ function AchievementGrid({ achievements }: { achievements: Achievement[] }) {
 }
 
 function DayCompleteModal({ result, onClose }: { result: DayResult; onClose: () => void }) {
+  const profitMargin = result.totals.netRevenue > 0 ? result.totals.netProfit / result.totals.netRevenue : 0
+  const remainingXp = result.levelProgress.xpNeeded > 0 ? Math.max(0, result.levelProgress.xpNeeded - result.levelProgress.xpIntoLevel) : 0
+
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="day-complete-modal" role="dialog" aria-modal="true" aria-labelledby="day-complete-title">
-        <span className="eyebrow">Day Complete</span>
-        <h2 id="day-complete-title">Today Score</h2>
-        <p>{result.message}</p>
-        <div className="rating-row">
-          <strong>{result.starRating} / 5 stars</strong>
-          <span>{result.report.date}</span>
+        <div className="day-result-hero">
+          <span className="eyebrow">Day Complete</span>
+          <h2 id="day-complete-title">Today's Score</h2>
+          <p>{result.message}</p>
+          <div className="rating-row">
+            <strong>{result.starRating} / 5 stars</strong>
+            <span>{result.report.date}</span>
+          </div>
         </div>
+
+        <div className="day-score-band">
+          <div>
+            <span>Profit earned</span>
+            <strong><AnimatedValue value={result.totals.netProfit} formatter={(value) => formatKr(value, 0)} /></strong>
+          </div>
+          <div>
+            <span>XP earned today</span>
+            <strong>+<AnimatedValue value={result.xpEarned} formatter={(value) => formatNumber(value, 0)} /> XP</strong>
+          </div>
+        </div>
+
         <div className="result-grid">
-          <Metric label="Revenue" value={formatKr(result.totals.totalRevenue, 0)} />
-          <Metric label="Profit" value={formatKr(result.totals.netProfit, 0)} tone={result.totals.netProfit >= 0 ? 'good' : 'bad'} />
-          <Metric label="Expenses" value={formatKr(result.totals.expenses, 0)} tone={result.totals.expenses > 0 ? 'warn' : 'neutral'} />
+          <Metric label="Revenue" value={<AnimatedValue value={result.totals.totalRevenue} formatter={(value) => formatKr(value, 0)} />} />
+          <Metric label="Profit" value={<AnimatedValue value={result.totals.netProfit} formatter={(value) => formatKr(value, 0)} />} tone={result.totals.netProfit >= 0 ? 'good' : 'bad'} />
+          <Metric label="Expenses" value={<AnimatedValue value={result.totals.expenses} formatter={(value) => formatKr(value, 0)} />} tone={result.totals.expenses > 0 ? 'warn' : 'neutral'} />
+          <Metric label="Margin" value={<AnimatedValue value={profitMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} tone={profitMargin >= 0.35 ? 'good' : 'warn'} />
+          <Metric label="Products sold" value={<AnimatedValue value={result.totals.totalItems} formatter={(value) => formatNumber(value, 0)} />} />
           <Metric label="Best Seller" value={result.bestSeller} />
+          <Metric label="Worst Seller" value={result.worstSeller} tone="warn" />
           <Metric label="Stock Warnings" value={result.stockWarnings} tone={result.stockWarnings > 0 ? 'warn' : 'good'} />
         </div>
+
+        <section className="level-result-card">
+          <header>
+            <div>
+              <span className="eyebrow">Level progress</span>
+              <strong>Level {result.levelProgress.level}: {result.levelProgress.name}</strong>
+            </div>
+            <b>{formatNumber(result.levelProgress.xp, 0)} XP</b>
+          </header>
+          <div className="xp-progress level-result-progress" aria-label="Level progress after saved report">
+            <i style={{ width: `${Math.round(result.levelProgress.progress * 100)}%` }} />
+          </div>
+          <p>{result.levelProgress.xpNeeded > 0 ? `${formatNumber(remainingXp, 0)} XP to next level` : 'Max level reached'}</p>
+        </section>
+
+        <div className="day-result-panels">
+          <section className="day-result-panel">
+            <span className="card-badge">New achievement unlocked</span>
+            {result.achievementsUnlockedToday.length > 0 ? (
+              <div className="new-achievements-list">
+                {result.achievementsUnlockedToday.map((achievement) => (
+                  <strong key={achievement.id}>{achievement.title}</strong>
+                ))}
+              </div>
+            ) : (
+              <p>No new achievement today. Keep the streak alive.</p>
+            )}
+          </section>
+          <section className={`day-result-panel ${result.stockWarnings > 0 ? 'warn' : 'good'}`}>
+            <span className="card-badge">Stock needs attention</span>
+            {result.stockWarnings > 0 ? (
+              <p>{result.stockWarningNames.slice(0, 3).join(', ')}</p>
+            ) : (
+              <p>No stock warnings after this report.</p>
+            )}
+          </section>
+        </div>
+
         <button className="primary-button" type="button" onClick={onClose}>
           Continue
         </button>

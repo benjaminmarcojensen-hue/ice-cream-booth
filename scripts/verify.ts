@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { calculateDateRangeSummary, calculateReportTotals, calculateStock, countDaysInclusive, getLowStockItems, getMonthRange, getReportStreak, getWeekRange } from '../src/calculations.ts'
 import { expenseTypes, seedData } from '../src/data.ts'
 import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
-import { calculateBusinessXp, getAchievements, getBusinessHealth, getBusinessStreaks, getInventoryCards, getLevelProgress, getProductPerformance } from '../src/gamification.ts'
+import { calculateBusinessXp, calculateReportXp, getAchievements, getBusinessHealth, getBusinessStreaks, getInventoryCards, getLevelProgress, getProductPerformance } from '../src/gamification.ts'
 import { parseDailyReportText } from '../src/parser.ts'
 import { normalizeData } from '../src/storage.ts'
 import type { DailyReport } from '../src/types.ts'
@@ -27,6 +27,7 @@ assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').tot
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
 const seedXp = calculateBusinessXp(seedData)
 assert(seedXp > 0, 'Business XP should be earned from seeded reports')
+assert.equal(calculateReportXp(exampleTotals), 430, 'Daily report XP should include report, items, and profit rewards')
 assert.equal(getLevelProgress(seedXp).level, 2, 'Seed report should move the booth to Local Favorite')
 assert.equal(getBusinessStreaks(seedData, '2026-05-23').report, 1, 'Gamified report streak should use saved sales reports')
 assert(getAchievements(seedData, getLevelProgress(seedXp)).some((achievement) => achievement.id === 'first-sale' && achievement.unlocked), 'First Sale achievement should unlock from seed report')

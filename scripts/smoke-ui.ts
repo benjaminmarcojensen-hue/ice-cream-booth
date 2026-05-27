@@ -22,6 +22,12 @@ assert((await text()).includes('812,00 kr.'), 'Seeded 23/05/2026 sales VAT shoul
 const drysRow = page.locator('tr').filter({ hasText: 'Drys' })
 await drysRow.locator('input[type="number"]').first().fill('4')
 assert((await text()).includes('4.067,00 kr.'), 'Changing Drys quantity should update total revenue')
+await page.getByRole('button', { name: 'Save report' }).click()
+assert((await text()).includes('Day Complete'), 'Saving a daily report should show the end-of-day result screen')
+assert((await text()).includes('XP earned today'), 'Day Complete should show XP earned today')
+assert((await text()).includes('Worst Seller'), 'Day Complete should show the worst-selling product')
+assert((await text()).includes('Level progress'), 'Day Complete should show level progress')
+await page.getByRole('button', { name: 'Continue' }).click()
 
 await page.getByRole('button', { name: 'Expenses', exact: true }).click()
 await page.getByRole('button', { name: 'Cash register' }).click()

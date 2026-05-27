@@ -77,9 +77,12 @@ const reportsWithSales = (reports: DailyReport[]) => reports.filter((report) => 
 export const calculateBusinessXp = (data: AppData) =>
   reportsWithSales(data.dailyReports).reduce((xp, report) => {
     const totals = calculateReportTotals(report, data.products, data.expenses, data.settings)
-    // XP rewards the habit of reporting, the number of products sold, and real profit.
-    return xp + 10 + Math.floor(totals.totalItems) + Math.floor(Math.max(0, totals.netProfit) / 10)
+    return xp + calculateReportXp(totals)
   }, 0)
+
+export const calculateReportXp = (totals: Pick<ReturnType<typeof calculateReportTotals>, 'totalItems' | 'netProfit'>) =>
+  // XP rewards the habit of reporting, the number of products sold, and real profit.
+  10 + Math.floor(totals.totalItems) + Math.floor(Math.max(0, totals.netProfit) / 10)
 
 export const getLevelProgress = (xp: number): LevelProgress => {
   const index = levelThresholds.findIndex((threshold, currentIndex) => xp < (levelThresholds[currentIndex + 1] ?? Number.POSITIVE_INFINITY))
