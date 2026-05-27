@@ -188,7 +188,7 @@ button:disabled {
 
 .image-hero {
   position: relative;
-  min-height: 340px;
+  min-height: clamp(430px, 34vw, 600px);
   overflow: hidden;
   display: grid;
   align-items: end;
@@ -205,6 +205,7 @@ button:disabled {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
 }
 
 .image-hero::after {
@@ -243,6 +244,25 @@ button:disabled {
   display: grid;
   grid-template-columns: 1.35fr 1fr repeat(3, minmax(150px, 1fr));
   gap: 14px;
+}
+
+.dashboard-period-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.82);
+  box-shadow: 0 16px 35px rgba(86, 55, 31, 0.08);
+}
+
+.dashboard-period-toolbar > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .booth-level-card,
@@ -2648,7 +2668,7 @@ td .subtle {
   }
 
   .image-hero {
-    min-height: 360px;
+    min-height: 470px;
   }
 
   .image-hero-content {

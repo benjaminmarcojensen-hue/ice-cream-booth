@@ -13,6 +13,7 @@ import {
   getLowStockItems,
   getMonthRange,
   getProductCost,
+  getWeekRange,
   isDateInRange,
   monthKey,
   splitVat,
@@ -59,6 +60,7 @@ import type {
 
 type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'achievements' | 'summary' | 'import' | 'export'
 type IconComponent = (props: { size?: number }) => React.ReactElement
+type DashboardPeriod = 'today' | 'week' | 'month'
 type StockFilter = 'All' | 'Ingredients' | 'Packaging' | 'Toppings' | 'Urgent Refill' | 'Out of Stock'
 type StockActionMode = 'add' | 'use'
 type StockActionDraft = { stockItemId: string; mode: StockActionMode; quantity: number; notes: string }
@@ -250,7 +252,49 @@ const numberValue = (value: string) => Math.max(0, Number(value || 0))
 
 const formatDateLabel = (date?: string) => (date ? date.split('-').reverse().join('/') : 'Locked')
 
-const getDashboardRange = (today = toInputDate()) => ({ start: today, end: today, label: 'Today' })
+const dashboardPeriods: { id: DashboardPeriod; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: 'week', label: 'This Week' },
+  { id: 'month', label: 'This Month' },
+]
+
+const dashboardCopy: Record<DashboardPeriod, { score: string; revenue: string; profit: string; expenses: string; bestSeller: string; menuBoard: string; mission: string }> = {
+  today: {
+    score: "Today's Score",
+    revenue: "Today's Revenue",
+    profit: "Today's Profit",
+    expenses: 'Expenses Today',
+    bestSeller: 'Best Seller Today',
+    menuBoard: "Today's Menu Board",
+    mission: "Today's mission",
+  },
+  week: {
+    score: "This Week's Score",
+    revenue: 'Week Revenue',
+    profit: 'Week Profit',
+    expenses: 'Expenses This Week',
+    bestSeller: 'Best Seller This Week',
+    menuBoard: "This Week's Menu Board",
+    mission: "This week's mission",
+  },
+  month: {
+    score: "This Month's Score",
+    revenue: 'Month Revenue',
+    profit: 'Month Profit',
+    expenses: 'Expenses This Month',
+    bestSeller: 'Best Seller This Month',
+    menuBoard: "This Month's Menu Board",
+    mission: "This month's mission",
+  },
+}
+
+const getDashboardRange = (period: DashboardPeriod, today = toInputDate()) => {
+  if (period === 'week') return { ...getWeekRange(today), label: 'This Week' }
+  if (period === 'month') return { ...getMonthRange(today), label: 'This Month' }
+  return { start: today, end: today, label: 'Today' }
+}
+
+const getDashboardRangeLabel = (start: string, end: string) => (start === end ? start : `${start} to ${end}`)
 
 const imagePaths = {
   homepageHero: 'images/homepage-hero.png',
@@ -334,6 +378,7 @@ function App() {
   const [cloudLoaded, setCloudLoaded] = useState(() => !loadCloudConfig().enabled)
   const [isCloudBusy, setIsCloudBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('today')
   const [reportDate, setReportDate] = useState(toInputDate())
   const [draftReport, setDraftReport] = useState<DailyReport>(() => emptyReportForDate(toInputDate(), data.products))
   const [draftExpenses, setDraftExpenses] = useState<Expense[]>([])
@@ -420,7 +465,7 @@ function App() {
 
   const monthSummary = useMemo(() => calculateMonthlySummary(data, selectedMonth), [data, selectedMonth])
   const today = toInputDate()
-  const dashboardRange = useMemo(() => getDashboardRange(today), [today])
+  const dashboardRange = useMemo(() => getDashboardRange(dashboardPeriod, today), [dashboardPeriod, today])
   const dashboardSummary = useMemo(
     () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
     [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
@@ -485,7 +530,8 @@ function App() {
     return { bestDay, worstDay, profitChampion, expenseBoss, topProducts, salesStreak: bestSalesStreak, monthlyScore }
   }, [monthHealth.score, monthSummary.expenseBreakdown, monthSummary.netProfit, monthSummary.productBreakdown, monthSummary.totalItems, monthlyAchievements.length, monthlyReportDays])
   const shopQuest = useMemo(() => {
-    const periodGoal = data.settings.dailyRevenueGoal
+    const periodGoalMultiplier = dashboardPeriod === 'week' ? 7 : dashboardPeriod === 'month' ? 30 : 1
+    const periodGoal = data.settings.dailyRevenueGoal * periodGoalMultiplier
     const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
     return {
       periodGoal,
@@ -495,7 +541,8 @@ function App() {
       completedReports: data.dailyReports.filter((report) => report.items.some((item) => item.quantity > 0)).length,
       hasLowStock: lowStockItems.length > 0,
     }
-  }, [dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, levelProgress.xpIntoLevel, lowStockItems.length, streaks.report])
+  }, [dashboardPeriod, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, levelProgress.xpIntoLevel, lowStockItems.length, streaks.report])
+  const currentDashboardCopy = dashboardCopy[dashboardPeriod]
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
@@ -779,13 +826,29 @@ function App() {
 
       <main className="content">
         {activeTab === 'dashboard' && (
-          <Screen title="Ice Cream Booth Tycoon" kicker={`${dashboardRange.label} - ${dashboardRange.start}`}>
+          <Screen title="Ice Cream Booth Tycoon" kicker={`${dashboardRange.label} - ${getDashboardRangeLabel(dashboardRange.start, dashboardRange.end)}`}>
             <section className="game-home" aria-label="Ice Cream Booth Tycoon home screen">
+              <div className="dashboard-period-toolbar" aria-label="Dashboard period controls">
+                <div className="period-filter" role="group" aria-label="Dashboard period">
+                  {dashboardPeriods.map((period) => (
+                    <button
+                      className={dashboardPeriod === period.id ? 'active' : ''}
+                      key={period.id}
+                      onClick={() => setDashboardPeriod(period.id)}
+                      type="button"
+                    >
+                      {period.label}
+                    </button>
+                  ))}
+                </div>
+                <span>{getDashboardRangeLabel(dashboardRange.start, dashboardRange.end)}</span>
+              </div>
+
               <ImageHero
                 image={imagePaths.homepageHero}
-                kicker="Today's Score"
+                kicker={currentDashboardCopy.score}
                 title={data.settings.businessName}
-                text={`Today's mission: ${formatKr(shopQuest.periodGoal, 0)} revenue and a clean, profitable shift.`}
+                text={`${currentDashboardCopy.mission}: ${formatKr(shopQuest.periodGoal, 0)} revenue and a clean, profitable shift.`}
                 action={<GameButton label="Enter Today's Report" icon={<ReceiptText size={18} />} onClick={() => setActiveTab('daily')} primary />}
               />
 
@@ -797,15 +860,15 @@ function App() {
                   message={lowStockItems.length > 0 ? `${lowStockItems[0].item.name} is getting low. Open Stock before the next rush.` : "Nice setup. Add today's report when the booth closes to keep your streak alive."}
                   tone={lowStockItems.length > 0 ? 'warn' : 'good'}
                 />
-                <StatCard label="Today's Revenue" value={<AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} />
-                <StatCard label="Today's Profit" value={<AnimatedValue value={dashboardSummary.netProfit} formatter={(value) => formatKr(value, 0)} />} icon={<Trophy size={20} />} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
+                <StatCard label={currentDashboardCopy.revenue} value={<AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} />
+                <StatCard label={currentDashboardCopy.profit} value={<AnimatedValue value={dashboardSummary.netProfit} formatter={(value) => formatKr(value, 0)} />} icon={<Trophy size={20} />} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
                 <StatCard label="Items Sold" value={<AnimatedValue value={dashboardSummary.totalItems} formatter={(value) => formatNumber(value, 0)} />} icon={<IceCreamBowl size={20} />} />
-                <StatCard label="Expenses Today" value={<AnimatedValue value={dashboardSummary.expenses} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
+                <StatCard label={currentDashboardCopy.expenses} value={<AnimatedValue value={dashboardSummary.expenses} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
                 <StatCard label="Profit Margin" value={<AnimatedValue value={dashboardSummary.averageProfitMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} icon={<BarChart3 size={20} />} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
-                <StatCard label="Best Seller Today" value={dashboardSummary.bestSellingProduct} icon={<IceCreamBowl size={20} />} note={dashboardSummary.totalItems > 0 ? `${formatNumber(dashboardSummary.totalItems, 0)} items sold` : 'No sales today yet'} />
+                <StatCard label={currentDashboardCopy.bestSeller} value={dashboardSummary.bestSellingProduct} icon={<IceCreamBowl size={20} />} note={dashboardSummary.totalItems > 0 ? `${formatNumber(dashboardSummary.totalItems, 0)} items sold` : 'No sales in this period yet'} />
                 <StatCard label="Low Stock Warnings" value={lowStockItems.length > 0 ? `${lowStockItems.length} alert${lowStockItems.length === 1 ? '' : 's'}` : 'All clear'} icon={<AlertTriangle size={20} />} tone={lowStockItems.length > 0 ? 'warn' : 'good'} note={lowStockItems.slice(0, 2).map(({ item }) => item.name).join(', ') || 'Shelves look ready'} />
                 <ReportChartCard
-                  title="Today's Menu Board"
+                  title={currentDashboardCopy.menuBoard}
                   rows={dashboardSummary.productBreakdown.slice(0, 5).map((entry) => ({ label: entry.product, value: entry.quantity, display: `${formatNumber(entry.quantity, 0)} sold` }))}
                   emptyImage={imagePaths.coupleBadge}
                 />
