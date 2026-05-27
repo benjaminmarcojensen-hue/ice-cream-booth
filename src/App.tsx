@@ -587,7 +587,6 @@ function App() {
               <Metric label="Sales incl. moms" value={formatKr(dashboardSummary.totalRevenue, 0)} />
               <Metric label="Sales ex. moms" value={formatKr(dashboardSummary.netRevenue, 0)} />
               <Metric label="Expenses incl. moms" value={formatKr(dashboardSummary.expenses, 0)} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
-              <Metric label="Expenses ex. moms" value={formatKr(dashboardSummary.netExpenses, 0)} tone={dashboardSummary.netExpenses > 0 ? 'warn' : 'neutral'} />
               <Metric label="Net profit ex. moms" value={formatKr(dashboardSummary.netProfit, 0)} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
               <Metric label="Moms payable" value={formatKr(dashboardSummary.vatPayable, 0)} tone="warn" />
               <Metric label="Items sold" value={formatNumber(dashboardSummary.totalItems, 0)} />
