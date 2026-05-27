@@ -13,7 +13,6 @@ import {
   getMonthRange,
   getProductCost,
   getWeekRange,
-  isDateInRange,
   monthKey,
   splitVat,
   toInputDate,
@@ -235,12 +234,6 @@ const getDashboardRange = (period: DashboardPeriod, today = toInputDate()) => {
   return { ...getMonthRange(today), label: 'This month' }
 }
 
-const isTubStockItem = (item: StockItem) => {
-  const unit = item.unit.toLowerCase()
-  const name = item.name.toLowerCase()
-  return unit.includes('tub') || name.includes('tub')
-}
-
 const recurringExpenseDate = (month: string, dayOfMonth: number) => {
   const [year, monthNumber] = month.split('-').map(Number)
   const lastDay = new Date(year, monthNumber, 0).getDate()
@@ -341,24 +334,6 @@ function App() {
     () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
     [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
   )
-  const dashboardTubMetrics = useMemo(() => {
-    const tubItems = data.stockItems.filter(isTubStockItem)
-    const tubIds = new Set(tubItems.map((item) => item.id))
-    const periodTubs = data.stockMovements
-      .filter(
-        (movement) =>
-          tubIds.has(movement.stockItemId) &&
-          isDateInRange(movement.date, dashboardRange.start, dashboardRange.end) &&
-          (movement.type === 'Used' || movement.type === 'Waste' || movement.type === 'Adjustment -'),
-      )
-      .reduce((sum, movement) => sum + movement.quantity, 0)
-    const totalTubs = tubItems.reduce((sum, item) => sum + calculateStock(item, data.dailyReports, data.stockMovements).usedStock, 0)
-    return {
-      periodTubs,
-      totalTubs,
-      averageProfitPerTub: periodTubs > 0 ? dashboardSummary.netProfit / periodTubs : 0,
-    }
-  }, [dashboardRange.end, dashboardRange.start, dashboardSummary.netProfit, data.dailyReports, data.stockItems, data.stockMovements])
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
@@ -617,9 +592,6 @@ function App() {
               <Metric label="Moms payable" value={formatKr(dashboardSummary.vatPayable, 0)} tone="warn" />
               <Metric label="Items sold" value={formatNumber(dashboardSummary.totalItems, 0)} />
               <Metric label="Best seller" value={dashboardSummary.bestSellingProduct} />
-              <Metric label="Tubs used in period" value={formatNumber(dashboardTubMetrics.periodTubs, 1)} />
-              <Metric label="Tubs used total" value={formatNumber(dashboardTubMetrics.totalTubs, 1)} />
-              <Metric label="Average profit per tub" value={formatKr(dashboardTubMetrics.averageProfitPerTub, 0)} tone={dashboardTubMetrics.averageProfitPerTub >= 0 ? 'good' : 'bad'} />
             </div>
 
             <div className="two-column">
