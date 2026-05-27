@@ -35,6 +35,10 @@ The seeded example report for `23/05/2026` contains:
 
 That report calculates to `4.060 kr.` sales incl. moms, `3.248 kr.` sales ex. moms, and `812 kr.` sales moms.
 
+## Dashboard Overview
+
+Open **Dashboard** and use the period filter for **Today**, **This week**, or **This month**. The dashboard shows one period at a time, plus total tub usage and average profit per tub based on logged tub usage.
+
 ## Add Stock Items
 
 Open **Stock**.

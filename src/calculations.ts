@@ -25,9 +25,42 @@ export const formatNumber = (value: number, maximumFractionDigits = 2) =>
     maximumFractionDigits,
   }).format(Number.isFinite(value) ? value : 0)
 
-export const toInputDate = (date = new Date()) => date.toISOString().slice(0, 10)
+export const toInputDate = (date = new Date()) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 export const monthKey = (date: string) => date.slice(0, 7)
+
+export const parseInputDate = (date: string) => {
+  const [year = 0, month = 1, day = 1] = date.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+export const addDays = (date: string, days: number) => {
+  const next = parseInputDate(date)
+  next.setDate(next.getDate() + days)
+  return toInputDate(next)
+}
+
+export const getWeekRange = (date: string) => {
+  const current = parseInputDate(date)
+  const dayIndex = (current.getDay() + 6) % 7
+  current.setDate(current.getDate() - dayIndex)
+  const start = toInputDate(current)
+  return { start, end: addDays(start, 6) }
+}
+
+export const getMonthRange = (date: string) => {
+  const current = parseInputDate(date)
+  const start = toInputDate(new Date(current.getFullYear(), current.getMonth(), 1))
+  const end = toInputDate(new Date(current.getFullYear(), current.getMonth() + 1, 0))
+  return { start, end }
+}
+
+export const isDateInRange = (date: string, start: string, end: string) => date >= start && date <= end
 
 export const getGufBucketPriceInclVat = (settings: Settings) =>
   settings.gufBucketPriceExVat * (1 + settings.vatRate / 100)
@@ -132,9 +165,21 @@ export const calculateReportTotals = (
 }
 
 export const calculateMonthlySummary = (data: AppData, selectedMonth: string): MonthlySummary => {
-  const reports = data.dailyReports.filter((report) => monthKey(report.date) === selectedMonth)
-  const emptyReport: DailyReport = { id: 'empty', date: `${selectedMonth}-01`, items: [], notes: '' }
-  const totals = reports.reduce(
+  const range = getMonthRange(`${selectedMonth}-01`)
+  return calculateDateRangeSummary(data, range.start, range.end, selectedMonth)
+}
+
+export const calculateDateRangeSummary = (data: AppData, startDate: string, endDate: string, label = `${startDate} to ${endDate}`): MonthlySummary => {
+  const reports = data.dailyReports.filter((report) => isDateInRange(report.date, startDate, endDate))
+  const emptyReport: DailyReport = { id: 'empty', date: startDate, items: [], notes: '' }
+  const reportDates = new Set(reports.map((report) => report.date))
+  const expenseOnlyReports = data.expenses
+    .filter((expense) => isDateInRange(expense.date, startDate, endDate) && !expense.reportId && !reportDates.has(expense.date))
+    .map((expense) => expense.date)
+    .filter((date, index, dates) => dates.indexOf(date) === index)
+    .map((date) => ({ id: `expense-only-${date}`, date, items: [], notes: '' }))
+  const reportInputs = [...reports, ...expenseOnlyReports]
+  const totals = reportInputs.reduce(
     (summary, report) => {
       const reportTotals = calculateReportTotals(report, data.products, data.expenses, data.settings)
       summary.totalRevenue += reportTotals.totalRevenue
@@ -175,7 +220,7 @@ export const calculateMonthlySummary = (data: AppData, selectedMonth: string): M
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
 
-  const expensesForMonth = data.expenses.filter((expense) => monthKey(expense.date) === selectedMonth)
+  const expensesForMonth = data.expenses.filter((expense) => isDateInRange(expense.date, startDate, endDate))
   const expenseTotals = expensesForMonth.reduce(
     (map, expense) => map.set(expense.type, (map.get(expense.type) ?? 0) + expense.amount),
     new Map<ExpenseType, number>(),
@@ -184,7 +229,7 @@ export const calculateMonthlySummary = (data: AppData, selectedMonth: string): M
 
   return {
     ...totals,
-    month: selectedMonth,
+    month: label,
     bestSellingProduct,
     averageProfitMargin,
     dailyRevenue,

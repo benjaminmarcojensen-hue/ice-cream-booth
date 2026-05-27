@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { calculateReportTotals, calculateStock, getLowStockItems } from '../src/calculations.ts'
+import { calculateDateRangeSummary, calculateReportTotals, calculateStock, getLowStockItems, getMonthRange, getWeekRange } from '../src/calculations.ts'
 import { seedData } from '../src/data.ts'
 import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
 import { parseDailyReportText } from '../src/parser.ts'
@@ -16,6 +16,10 @@ approx(exampleTotals.netRevenue, 3248, '23/05/2026 report revenue ex. moms shoul
 approx(exampleTotals.outputVat, 812, '23/05/2026 report sales moms should be 812 kr.')
 approx(exampleTotals.vatPayable, 812, '23/05/2026 VAT payable should be 812 kr. with no deductible purchase VAT')
 approx(exampleTotals.netProfit, 3248, '23/05/2026 net profit ex. moms should be 3.248 kr. before costs and expenses')
+
+assert.deepEqual(getMonthRange('2026-05-23'), { start: '2026-05-01', end: '2026-05-31' }, 'Month range should use local calendar dates')
+assert.deepEqual(getWeekRange('2026-05-23'), { start: '2026-05-18', end: '2026-05-24' }, 'Week range should run Monday to Sunday')
+assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 4060, 'Date range dashboard summary should include the seed report')
 
 const changedReport: DailyReport = {
   ...exampleReport,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { expenseTypes, paymentMethods } from './data'
 import {
+  calculateDateRangeSummary,
   calculateMonthlySummary,
   calculateReportTotals,
   calculateStock,
@@ -9,7 +10,10 @@ import {
   formatNumber,
   getGufBucketPriceInclVat,
   getLowStockItems,
+  getMonthRange,
   getProductCost,
+  getWeekRange,
+  isDateInRange,
   monthKey,
   splitVat,
   toInputDate,
@@ -31,6 +35,7 @@ import { loadCloudData, saveCloudData, testCloudConnection } from './cloudStorag
 import type { AppData, CloudConfig, DailyReport, Expense, ExpenseType, PaymentMethod, Product, StockItem, StockMovement, StockMovementType } from './types'
 
 type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'summary' | 'import' | 'export'
+type DashboardPeriod = 'day' | 'week' | 'month'
 type IconComponent = (props: { size?: number }) => React.ReactElement
 
 const IconGlyph = ({ size = 18, variant }: { size?: number; variant: string }) => (
@@ -153,6 +158,12 @@ const tabs: { id: TabId; label: string; icon: IconComponent }[] = [
 
 const stockMovementTypes: StockMovementType[] = ['Received', 'Used', 'Waste', 'Adjustment +', 'Adjustment -']
 
+const dashboardPeriods: { id: DashboardPeriod; label: string }[] = [
+  { id: 'day', label: 'Today' },
+  { id: 'week', label: 'This week' },
+  { id: 'month', label: 'This month' },
+]
+
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const emptyReportForDate = (date: string, products: Product[]): DailyReport => ({
@@ -195,6 +206,18 @@ const emptyStockMovement = (stockItemId = '', date = toInputDate()): StockMoveme
 
 const numberValue = (value: string) => Math.max(0, Number(value || 0))
 
+const getDashboardRange = (period: DashboardPeriod, today = toInputDate()) => {
+  if (period === 'day') return { start: today, end: today, label: 'Today' }
+  if (period === 'week') return { ...getWeekRange(today), label: 'This week' }
+  return { ...getMonthRange(today), label: 'This month' }
+}
+
+const isTubStockItem = (item: StockItem) => {
+  const unit = item.unit.toLowerCase()
+  const name = item.name.toLowerCase()
+  return unit.includes('tub') || name.includes('tub')
+}
+
 function App() {
   const [data, setData] = useState<AppData>(() => loadData())
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => loadCloudConfig())
@@ -202,6 +225,7 @@ function App() {
   const [cloudLoaded, setCloudLoaded] = useState(() => !loadCloudConfig().enabled)
   const [isCloudBusy, setIsCloudBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('month')
   const [reportDate, setReportDate] = useState(toInputDate())
   const [draftReport, setDraftReport] = useState<DailyReport>(() => emptyReportForDate(toInputDate(), data.products))
   const [draftExpenses, setDraftExpenses] = useState<Expense[]>([])
@@ -279,16 +303,30 @@ function App() {
     return () => window.clearTimeout(timeout)
   }, [cloudConfig.enabled, cloudConfig.supabaseAnonKey, cloudConfig.supabaseUrl, cloudLoaded, data])
 
-  const todayReport = useMemo(
-    () => data.dailyReports.find((report) => report.date === toInputDate()) ?? emptyReportForDate(toInputDate(), data.products),
-    [data.dailyReports, data.products],
-  )
-  const todayTotals = useMemo(
-    () => calculateReportTotals(todayReport, data.products, data.expenses, data.settings),
-    [data.expenses, data.products, data.settings, todayReport],
-  )
   const monthSummary = useMemo(() => calculateMonthlySummary(data, selectedMonth), [data, selectedMonth])
-  const dashboardMonth = useMemo(() => calculateMonthlySummary(data, monthKey(toInputDate())), [data])
+  const dashboardRange = useMemo(() => getDashboardRange(dashboardPeriod), [dashboardPeriod])
+  const dashboardSummary = useMemo(
+    () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
+    [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
+  )
+  const dashboardTubMetrics = useMemo(() => {
+    const tubItems = data.stockItems.filter(isTubStockItem)
+    const tubIds = new Set(tubItems.map((item) => item.id))
+    const periodTubs = data.stockMovements
+      .filter(
+        (movement) =>
+          tubIds.has(movement.stockItemId) &&
+          isDateInRange(movement.date, dashboardRange.start, dashboardRange.end) &&
+          (movement.type === 'Used' || movement.type === 'Waste' || movement.type === 'Adjustment -'),
+      )
+      .reduce((sum, movement) => sum + movement.quantity, 0)
+    const totalTubs = tubItems.reduce((sum, item) => sum + calculateStock(item, data.dailyReports, data.stockMovements).usedStock, 0)
+    return {
+      periodTubs,
+      totalTubs,
+      averageProfitPerTub: periodTubs > 0 ? dashboardSummary.netProfit / periodTubs : 0,
+    }
+  }, [dashboardRange.end, dashboardRange.start, dashboardSummary.netProfit, data.dailyReports, data.stockItems, data.stockMovements])
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
@@ -493,18 +531,29 @@ function App() {
 
       <main className="content">
         {activeTab === 'dashboard' && (
-          <Screen title="Dashboard" kicker={toInputDate()}>
+          <Screen title="Dashboard" kicker={`${dashboardRange.start} to ${dashboardRange.end}`}>
+            <div className="period-filter" role="group" aria-label="Dashboard period">
+              {dashboardPeriods.map((period) => (
+                <button
+                  key={period.id}
+                  className={dashboardPeriod === period.id ? 'active' : ''}
+                  type="button"
+                  onClick={() => setDashboardPeriod(period.id)}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
             <div className="metrics-grid">
-              <Metric label="Today's sales incl. moms" value={formatKr(todayTotals.totalRevenue, 0)} />
-              <Metric label="Today's sales ex. moms" value={formatKr(todayTotals.netRevenue, 0)} />
-              <Metric label="Today's profit ex. moms" value={formatKr(todayTotals.grossProfit, 0)} tone="good" />
-              <Metric label="Today's net profit ex. moms" value={formatKr(todayTotals.netProfit, 0)} tone={todayTotals.netProfit >= 0 ? 'good' : 'bad'} />
-              <Metric label="Today moms payable" value={formatKr(todayTotals.vatPayable, 0)} tone="warn" />
-              <Metric label="Month sales incl. moms" value={formatKr(dashboardMonth.totalRevenue, 0)} />
-              <Metric label="Month net profit ex. moms" value={formatKr(dashboardMonth.netProfit, 0)} tone={dashboardMonth.netProfit >= 0 ? 'good' : 'bad'} />
-              <Metric label="Month moms payable" value={formatKr(dashboardMonth.vatPayable, 0)} tone="warn" />
-              <Metric label="Items sold this month" value={formatNumber(dashboardMonth.totalItems, 0)} />
-              <Metric label="Best seller this month" value={dashboardMonth.bestSellingProduct} />
+              <Metric label="Sales incl. moms" value={formatKr(dashboardSummary.totalRevenue, 0)} />
+              <Metric label="Sales ex. moms" value={formatKr(dashboardSummary.netRevenue, 0)} />
+              <Metric label="Net profit ex. moms" value={formatKr(dashboardSummary.netProfit, 0)} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
+              <Metric label="Moms payable" value={formatKr(dashboardSummary.vatPayable, 0)} tone="warn" />
+              <Metric label="Items sold" value={formatNumber(dashboardSummary.totalItems, 0)} />
+              <Metric label="Best seller" value={dashboardSummary.bestSellingProduct} />
+              <Metric label="Tubs used in period" value={formatNumber(dashboardTubMetrics.periodTubs, 1)} />
+              <Metric label="Tubs used total" value={formatNumber(dashboardTubMetrics.totalTubs, 1)} />
+              <Metric label="Average profit per tub" value={formatKr(dashboardTubMetrics.averageProfitPerTub, 0)} tone={dashboardTubMetrics.averageProfitPerTub >= 0 ? 'good' : 'bad'} />
             </div>
 
             <div className="two-column">
@@ -526,8 +575,8 @@ function App() {
                 )}
               </Panel>
 
-              <Panel title="Month Snapshot" icon={<BarChart3 size={18} />}>
-                <MiniBars rows={dashboardMonth.productBreakdown.map((entry) => ({ label: entry.product, value: entry.quantity }))} />
+              <Panel title={`${dashboardRange.label} Snapshot`} icon={<BarChart3 size={18} />}>
+                <MiniBars rows={dashboardSummary.productBreakdown.map((entry) => ({ label: entry.product, value: entry.quantity }))} />
               </Panel>
             </div>
           </Screen>
