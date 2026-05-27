@@ -10,9 +10,7 @@ import {
   formatNumber,
   getGufBucketPriceInclVat,
   getLowStockItems,
-  getMonthRange,
   getProductCost,
-  getWeekRange,
   monthKey,
   splitVat,
   toInputDate,
@@ -34,11 +32,9 @@ import { loadCloudData, saveCloudData, testCloudConnection } from './cloudStorag
 import {
   calculateBusinessXp,
   getAchievements,
-  getBusinessHealth,
   getBusinessStreaks,
   getInventoryCards,
   getLevelProgress,
-  getProductPerformance,
 } from './gamification'
 import type { Achievement } from './gamification'
 import type {
@@ -57,7 +53,6 @@ import type {
 } from './types'
 
 type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'summary' | 'import' | 'export'
-type DashboardPeriod = 'day' | 'week' | 'month'
 type IconComponent = (props: { size?: number }) => React.ReactElement
 
 const IconGlyph = ({ size = 18, variant }: { size?: number; variant: string }) => (
@@ -180,12 +175,6 @@ const tabs: { id: TabId; label: string; icon: IconComponent }[] = [
 
 const stockMovementTypes: StockMovementType[] = ['Received', 'Used', 'Waste', 'Adjustment +', 'Adjustment -']
 
-const dashboardPeriods: { id: DashboardPeriod; label: string }[] = [
-  { id: 'day', label: 'Today' },
-  { id: 'week', label: 'This week' },
-  { id: 'month', label: 'This month' },
-]
-
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const emptyReportForDate = (date: string, products: Product[]): DailyReport => ({
@@ -239,17 +228,7 @@ const emptyStockMovement = (stockItemId = '', date = toInputDate()): StockMoveme
 
 const numberValue = (value: string) => Math.max(0, Number(value || 0))
 
-const getDashboardRange = (period: DashboardPeriod, today = toInputDate()) => {
-  if (period === 'day') return { start: today, end: today, label: 'Today' }
-  if (period === 'week') return { ...getWeekRange(today), label: 'This week' }
-  return { ...getMonthRange(today), label: 'This month' }
-}
-
-const getDashboardGoalMultiplier = (period: DashboardPeriod) => {
-  if (period === 'day') return 1
-  if (period === 'week') return 7
-  return 30
-}
+const getDashboardRange = (today = toInputDate()) => ({ start: today, end: today, label: 'Today' })
 
 const recurringExpenseDate = (month: string, dayOfMonth: number) => {
   const [year, monthNumber] = month.split('-').map(Number)
@@ -257,8 +236,6 @@ const recurringExpenseDate = (month: string, dayOfMonth: number) => {
   const day = String(Math.min(lastDay, Math.max(1, dayOfMonth || 1))).padStart(2, '0')
   return `${month}-${day}`
 }
-
-const achievementUnlocked = (condition: boolean) => (condition ? 'unlocked' : 'locked')
 
 type DayResult = {
   report: DailyReport
@@ -305,7 +282,6 @@ function App() {
   const [cloudLoaded, setCloudLoaded] = useState(() => !loadCloudConfig().enabled)
   const [isCloudBusy, setIsCloudBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
-  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('month')
   const [reportDate, setReportDate] = useState(toInputDate())
   const [draftReport, setDraftReport] = useState<DailyReport>(() => emptyReportForDate(toInputDate(), data.products))
   const [draftExpenses, setDraftExpenses] = useState<Expense[]>([])
@@ -388,7 +364,7 @@ function App() {
 
   const monthSummary = useMemo(() => calculateMonthlySummary(data, selectedMonth), [data, selectedMonth])
   const today = toInputDate()
-  const dashboardRange = useMemo(() => getDashboardRange(dashboardPeriod), [dashboardPeriod])
+  const dashboardRange = useMemo(() => getDashboardRange(today), [today])
   const dashboardSummary = useMemo(
     () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
     [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
@@ -396,13 +372,11 @@ function App() {
   const lowStockItems = getLowStockItems(data)
   const levelProgress = useMemo(() => getLevelProgress(calculateBusinessXp(data)), [data])
   const streaks = useMemo(() => getBusinessStreaks(data, today), [data, today])
-  const businessHealth = useMemo(() => getBusinessHealth(data, dashboardSummary, dashboardRange.start, dashboardRange.end), [dashboardRange.end, dashboardRange.start, dashboardSummary, data])
   const achievements = useMemo(() => getAchievements(data, levelProgress), [data, levelProgress])
   const unlockedAchievements = achievements.filter((achievement) => achievement.unlocked)
-  const productPerformance = useMemo(() => getProductPerformance(data, dashboardRange.start, dashboardRange.end, today), [dashboardRange.end, dashboardRange.start, data, today])
   const inventoryCards = useMemo(() => getInventoryCards(data), [data])
   const shopQuest = useMemo(() => {
-    const periodGoal = data.settings.dailyRevenueGoal * getDashboardGoalMultiplier(dashboardPeriod)
+    const periodGoal = data.settings.dailyRevenueGoal
     const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
     return {
       periodGoal,
@@ -412,7 +386,7 @@ function App() {
       completedReports: data.dailyReports.filter((report) => report.items.some((item) => item.quantity > 0)).length,
       hasLowStock: lowStockItems.length > 0,
     }
-  }, [dashboardPeriod, dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, levelProgress.xpIntoLevel, lowStockItems.length, streaks.report])
+  }, [dashboardSummary.netProfit, dashboardSummary.totalItems, dashboardSummary.totalRevenue, data.dailyReports, data.settings.dailyRevenueGoal, levelProgress.xpIntoLevel, lowStockItems.length, streaks.report])
   const draftTotals = useMemo(
     () => calculateReportTotals(draftReport, data.products, draftExpenses, data.settings),
     [data.products, data.settings, draftExpenses, draftReport],
@@ -651,151 +625,99 @@ function App() {
 
       <main className="content">
         {activeTab === 'dashboard' && (
-          <Screen title="Dashboard" kicker={`${dashboardRange.start} to ${dashboardRange.end}`}>
-            <section className="tycoon-hero" aria-label="Ice Cream Booth Tycoon status">
-              <div className="level-card">
-                <span className="eyebrow">Business Level</span>
-                <div className="level-title">
-                  <strong>Level {levelProgress.level}</strong>
-                  <b>{levelProgress.name}</b>
+          <Screen title="Ice Cream Booth Tycoon" kicker={`${dashboardRange.label} - ${dashboardRange.start}`}>
+            <section className="game-home" aria-label="Ice Cream Booth Tycoon home screen">
+              <header className="home-header-card">
+                <div className="booth-title">
+                  <span className="badge-icon">
+                    <IceCreamBowl size={24} />
+                  </span>
+                  <div>
+                    <span className="eyebrow">Booth HQ</span>
+                    <h3>{data.settings.businessName}</h3>
+                  </div>
                 </div>
-                <div className="xp-progress" aria-label="XP progress">
-                  <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
+                <div className="header-level">
+                  <span>Level {levelProgress.level}</span>
+                  <strong>{levelProgress.name}</strong>
+                  <div className="xp-progress" aria-label="XP progress">
+                    <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
+                  </div>
+                  <small>
+                    {formatNumber(levelProgress.xp, 0)} XP
+                    {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
+                  </small>
                 </div>
-                <p>
-                  {formatNumber(levelProgress.xp, 0)} XP
-                  {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
-                </p>
-              </div>
-              <div className="health-card">
-                <span className="eyebrow">Business Health</span>
-                <div className="health-meter" style={{ '--health': `${businessHealth.score}%` } as React.CSSProperties}>
-                  <strong>{businessHealth.score}</strong>
+                <div className="header-streak">
+                  <span>Current Streak</span>
+                  <strong>{formatNumber(streaks.report, 0)} day{streaks.report === 1 ? '' : 's'}</strong>
+                  <small>Reports entered in a row</small>
                 </div>
-                <b>{businessHealth.label}</b>
-                <small>Margin, stock, expenses, and sales rhythm.</small>
-              </div>
-              <div className="mission-card">
-                <span className="eyebrow">Daily Mission</span>
-                <strong>Upgrade your booth</strong>
-                <small>{formatNumber(unlockedAchievements.length, 0)} achievement badges unlocked.</small>
-                <div className="mission-actions">
-                  <button type="button" onClick={() => setActiveTab('daily')}>Enter daily report</button>
-                  <button type="button" onClick={() => setActiveTab('summary')}>View reports</button>
-                  <button type="button" onClick={() => setActiveTab('stock')}>Manage stock</button>
-                  <button type="button" onClick={() => setActiveTab('expenses')}>Add expenses</button>
-                </div>
-              </div>
-            </section>
+              </header>
 
-            <div className="period-filter" role="group" aria-label="Dashboard period">
-              {dashboardPeriods.map((period) => (
-                <button
-                  key={period.id}
-                  className={dashboardPeriod === period.id ? 'active' : ''}
-                  type="button"
-                  onClick={() => setDashboardPeriod(period.id)}
-                >
-                  {period.label}
-                </button>
-              ))}
-            </div>
-            <div className="metrics-grid">
-              <Metric label="Sales Score" value={formatKr(dashboardSummary.totalRevenue, 0)} />
-              <Metric label="Profit" value={formatKr(dashboardSummary.netProfit, 0)} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
-              <Metric label="Profit margin" value={`${formatNumber(dashboardSummary.averageProfitMargin * 100, 1)}%`} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
-              <Metric label="Expenses" value={formatKr(dashboardSummary.expenses, 0)} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
-              <Metric label="Items sold" value={formatNumber(dashboardSummary.totalItems, 0)} />
-              <Metric label="Best seller" value={dashboardSummary.bestSellingProduct} />
-              <Metric label="Stock alerts" value={lowStockItems.length} tone={lowStockItems.length > 0 ? 'warn' : 'good'} />
-              <Metric label="Scoop score" value={formatNumber(shopQuest.scoopScore, 0)} />
-            </div>
-
-            <Panel title="Shop Quest" icon={<IceCreamBowl size={18} />}>
-              <div className="quest-grid">
-                <div className="quest-card">
-                  <span>Goal progress</span>
-                  <strong>
-                    {formatKr(dashboardSummary.totalRevenue, 0)} / {formatKr(shopQuest.periodGoal, 0)}
-                  </strong>
-                  <div className="quest-progress" aria-label="Sales goal progress">
+              <div className="home-dashboard-grid">
+                <article className="today-score-card">
+                  <span className="eyebrow">Today's Score</span>
+                  <strong><AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} /></strong>
+                  <p>
+                    Goal: {formatKr(shopQuest.periodGoal, 0)} - {formatNumber(Math.round(shopQuest.goalProgress * 100), 0)}% complete
+                  </p>
+                  <div className="score-progress" aria-label="Daily score progress">
                     <i style={{ width: `${Math.round(shopQuest.goalProgress * 100)}%` }} />
                   </div>
-                </div>
-                <div className="quest-card">
-                  <span>Report streak</span>
-                  <strong>{formatNumber(shopQuest.reportStreak, 0)} day(s)</strong>
-                  <small>Consecutive days with saved sales reports.</small>
-                </div>
-                <div className="quest-card">
-                  <span>Scoop score</span>
-                  <strong>{formatNumber(shopQuest.scoopScore, 0)}</strong>
-                  <small>Profit and items sold turned into a friendly score.</small>
-                </div>
-              </div>
-              <div className="streak-grid">
-                <StreakCard label="Report Streak" value={streaks.report} note="Days entered in a row" />
-                <StreakCard label="Profit Streak" value={streaks.profitable} note="Profitable days in a row" />
-                <StreakCard label="Stock Calm" value={streaks.stockCalm} note="Tracked days without waste" />
-              </div>
-              <div className="badge-row">
-                <span className={`achievement ${achievementUnlocked(shopQuest.completedReports > 0)}`}>First report</span>
-                <span className={`achievement ${achievementUnlocked(shopQuest.goalProgress >= 1)}`}>Goal hit</span>
-                <span className={`achievement ${achievementUnlocked(shopQuest.reportStreak >= 3)}`}>3 day streak</span>
-                <span className={`achievement ${achievementUnlocked(dashboardSummary.netProfit > 0)}`}>Profit day</span>
-                <span className={`achievement ${achievementUnlocked(!shopQuest.hasLowStock)}`}>Stock calm</span>
-              </div>
-            </Panel>
+                  <button className="primary-quest-button" type="button" onClick={() => setActiveTab('daily')}>
+                    Enter Today's Report
+                  </button>
+                </article>
 
-            <div className="two-column">
-              <Panel title="Low Stock Warnings" icon={<AlertTriangle size={18} />}>
-                {lowStockItems.length === 0 ? (
-                  <p className="muted">No low stock warnings right now.</p>
-                ) : (
-                  <div className="warning-list">
-                    {lowStockItems.map(({ item, status }) => (
-                      <div className="warning-row" key={item.id}>
-                        <strong>{item.name}</strong>
-                        <span>
-                          {formatNumber(status.currentStock)} {item.unit}
-                        </span>
-                        <b>Order soon</b>
-                      </div>
+                <Metric label="Revenue" value={<AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} />} />
+                <Metric label="Profit" value={<AnimatedValue value={dashboardSummary.netProfit} formatter={(value) => formatKr(value, 0)} />} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
+                <Metric label="Expenses" value={<AnimatedValue value={dashboardSummary.expenses} formatter={(value) => formatKr(value, 0)} />} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
+                <Metric label="Margin" value={<AnimatedValue value={dashboardSummary.averageProfitMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
+
+                <article className="home-card best-seller-card">
+                  <span className="card-badge">Best Seller Today</span>
+                  <strong>{dashboardSummary.bestSellingProduct}</strong>
+                  <small>{dashboardSummary.totalItems > 0 ? `${formatNumber(dashboardSummary.totalItems, 0)} items sold today` : 'No sales entered today yet'}</small>
+                </article>
+
+                <article className={`home-card stock-alert-card ${lowStockItems.length > 0 ? 'warn' : 'good'}`}>
+                  <span className="card-badge">Stock Alerts</span>
+                  <strong>{lowStockItems.length > 0 ? `${lowStockItems.length} needs attention` : 'All clear'}</strong>
+                  {lowStockItems.length === 0 ? (
+                    <small>No low stock warnings right now.</small>
+                  ) : (
+                    <small>{lowStockItems.slice(0, 2).map(({ item }) => item.name).join(', ')}</small>
+                  )}
+                </article>
+
+                <article className="home-card mission-home-card">
+                  <span className="card-badge">Daily Mission</span>
+                  <strong>Beat {formatKr(data.settings.dailyRevenueGoal, 0)}</strong>
+                  <small>Profit streak: {formatNumber(streaks.profitable, 0)} day{streaks.profitable === 1 ? '' : 's'}</small>
+                  <div className="mini-progress">
+                    <i style={{ width: `${Math.round(shopQuest.goalProgress * 100)}%` }} />
+                  </div>
+                </article>
+
+                <article className="home-card achievements-home-card">
+                  <span className="card-badge">Recent Achievements</span>
+                  <strong>{formatNumber(unlockedAchievements.length, 0)} unlocked</strong>
+                  <div className="mini-achievements">
+                    {achievements.slice(0, 4).map((achievement) => (
+                      <span className={achievement.unlocked ? 'unlocked' : ''} key={achievement.id}>{achievement.title}</span>
                     ))}
                   </div>
-                )}
-              </Panel>
+                </article>
 
-              <Panel title={`${dashboardRange.label} Snapshot`} icon={<BarChart3 size={18} />}>
-                <MiniBars rows={dashboardSummary.productBreakdown.map((entry) => ({ label: entry.product, value: entry.quantity }))} />
-              </Panel>
-            </div>
-
-            <Panel title="Recent Achievements" icon={<IceCreamBowl size={18} />}>
-              <AchievementGrid achievements={achievements} />
-            </Panel>
-
-            <Panel title="Product Performance Cards" icon={<BarChart3 size={18} />}>
-              <div className="product-card-grid">
-                {productPerformance.map((entry) => (
-                  <article className={`product-card ${entry.badge.toLowerCase().replaceAll(' ', '-')}`} key={entry.product.id}>
-                    <header>
-                      <span>{entry.product.category}</span>
-                      <b>{entry.badge}</b>
-                    </header>
-                    <h3>{entry.product.name}</h3>
-                    <div className="product-stats">
-                      <span>Price <strong>{formatKr(entry.price, 0)}</strong></span>
-                      <span>Cost <strong>{formatKr(entry.cost)}</strong></span>
-                      <span>Profit/sale <strong>{formatKr(entry.profitPerSale)}</strong></span>
-                      <span>Sold today <strong>{formatNumber(entry.unitsSoldToday, 0)}</strong></span>
-                      <span>Total sales <strong>{formatKr(entry.totalRevenue, 0)}</strong></span>
-                      <span>Margin <strong>{formatNumber(entry.margin * 100, 1)}%</strong></span>
-                    </div>
-                  </article>
-                ))}
+                <nav className="home-actions" aria-label="Main dashboard actions">
+                  <button type="button" onClick={() => setActiveTab('stock')}>Stock</button>
+                  <button type="button" onClick={() => setActiveTab('expenses')}>Expenses</button>
+                  <button type="button" onClick={() => setActiveTab('summary')}>Reports</button>
+                  <button type="button" onClick={() => setActiveTab('pricing')}>Products</button>
+                </nav>
               </div>
-            </Panel>
+            </section>
           </Screen>
         )}
 
@@ -1704,7 +1626,29 @@ function Panel({ title, icon, children }: { title: string; icon: React.ReactNode
   )
 }
 
-function Metric({ label, value, tone = 'neutral' }: { label: string; value: string | number; tone?: 'neutral' | 'good' | 'bad' | 'warn' }) {
+function AnimatedValue({ value, formatter }: { value: number; formatter: (value: number) => string }) {
+  const [displayValue, setDisplayValue] = useState(0)
+
+  useEffect(() => {
+    const duration = 650
+    const start = performance.now()
+    let frame = 0
+
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - start) / duration)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplayValue(value * eased)
+      if (progress < 1) frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [value])
+
+  return <>{formatter(displayValue)}</>
+}
+
+function Metric({ label, value, tone = 'neutral' }: { label: string; value: React.ReactNode; tone?: 'neutral' | 'good' | 'bad' | 'warn' }) {
   return (
     <div className={`metric ${tone}`}>
       <span>{label}</span>

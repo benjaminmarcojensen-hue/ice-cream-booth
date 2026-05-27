@@ -167,6 +167,292 @@ button:disabled {
   color: var(--heading);
 }
 
+.game-home {
+  display: grid;
+  gap: 18px;
+}
+
+.home-header-card {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.25fr) minmax(240px, 0.9fr) minmax(180px, 0.55fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 26px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 241, 216, 0.9)),
+    radial-gradient(circle at 90% 20%, rgba(255, 184, 108, 0.22), transparent 35%);
+  box-shadow: 0 24px 58px rgba(108, 70, 38, 0.13);
+  animation: card-in 360ms ease both;
+}
+
+.booth-title,
+.header-level,
+.header-streak {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.booth-title {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.badge-icon {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #7a3415;
+  background: linear-gradient(135deg, #ffe1a8, #ffbfd0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 12px 24px rgba(122, 52, 21, 0.14);
+}
+
+.booth-title h3,
+.header-level strong,
+.header-streak strong {
+  margin: 0;
+  color: var(--heading);
+}
+
+.booth-title h3 {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.header-level,
+.header-streak {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+}
+
+.header-level > span,
+.header-streak > span {
+  color: #8b5c2d;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header-level strong {
+  font-size: 22px;
+}
+
+.header-streak strong {
+  color: #1c5949;
+  font-size: 30px;
+}
+
+.header-level small,
+.header-streak small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.home-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.45fr) repeat(4, minmax(150px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.today-score-card,
+.home-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 42px rgba(36, 28, 21, 0.09);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  animation: card-in 420ms ease both;
+}
+
+.today-score-card {
+  grid-row: span 2;
+  min-height: 330px;
+  align-content: space-between;
+  color: #1b1712;
+  background:
+    radial-gradient(circle at 78% 10%, rgba(255, 210, 108, 0.42), transparent 34%),
+    linear-gradient(145deg, #fffdfa, #fff0d3 52%, #e9fff5);
+}
+
+.today-score-card::after,
+.home-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -48px -64px auto;
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+  background: rgba(255, 196, 211, 0.3);
+}
+
+.today-score-card strong {
+  position: relative;
+  z-index: 1;
+  font-size: 54px;
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.today-score-card p {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.score-progress,
+.mini-progress {
+  position: relative;
+  z-index: 1;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(70, 56, 38, 0.12);
+}
+
+.score-progress i,
+.mini-progress i {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2da66f, #6fd38d, #ffd166);
+  transition: width 650ms ease;
+}
+
+.primary-quest-button {
+  position: relative;
+  z-index: 1;
+  min-height: 58px;
+  border: 0;
+  border-radius: 18px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1f765e, #35a96f);
+  box-shadow: 0 16px 32px rgba(33, 118, 93, 0.22);
+  font-size: 17px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.home-card {
+  min-height: 148px;
+  align-content: space-between;
+}
+
+.today-score-card:hover,
+.home-card:hover,
+.primary-quest-button:hover,
+.home-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 52px rgba(36, 28, 21, 0.13);
+}
+
+.home-card strong {
+  position: relative;
+  z-index: 1;
+  color: var(--heading);
+  font-size: 24px;
+  line-height: 1.05;
+}
+
+.home-card small {
+  position: relative;
+  z-index: 1;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.card-badge {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #7a4a00;
+  background: #fff1d6;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.best-seller-card {
+  background: linear-gradient(145deg, #ffffff, #fff3dc);
+}
+
+.stock-alert-card.good {
+  background: linear-gradient(145deg, #ffffff, #e7f7ee);
+}
+
+.stock-alert-card.warn {
+  background: linear-gradient(145deg, #ffffff, #fff1d6);
+}
+
+.mission-home-card {
+  background: linear-gradient(145deg, #ffffff, #eefbff);
+}
+
+.achievements-home-card {
+  background: linear-gradient(145deg, #ffffff, #fff0f5);
+}
+
+.mini-achievements {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mini-achievements span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #827266;
+  background: #efe5d8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mini-achievements span.unlocked {
+  color: #1c5949;
+  background: #dff5e8;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  grid-column: 2 / -1;
+}
+
+.home-actions button {
+  min-height: 58px;
+  border: 1px solid rgba(33, 118, 93, 0.16);
+  border-radius: 18px;
+  color: #1c5949;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 30px rgba(36, 28, 21, 0.07);
+  font-weight: 950;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
 .tycoon-hero {
   display: grid;
   grid-template-columns: minmax(280px, 1.4fr) 250px minmax(280px, 1fr);
@@ -1084,6 +1370,8 @@ td .subtle {
   }
 
   .metrics-grid,
+  .home-header-card,
+  .home-dashboard-grid,
   .tycoon-hero,
   .settings-grid,
   .cloud-settings,
@@ -1094,6 +1382,15 @@ td .subtle {
   .result-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .today-score-card {
+    grid-row: auto;
+    grid-column: 1 / -1;
+  }
+
+  .home-actions {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1103,6 +1400,9 @@ td .subtle {
 
   .nav-tabs,
   .metrics-grid,
+  .home-header-card,
+  .home-dashboard-grid,
+  .home-actions,
   .tycoon-hero,
   .two-column,
   .chart-grid,
@@ -1139,6 +1439,11 @@ td .subtle {
 
   .mission-actions {
     grid-template-columns: 1fr;
+  }
+
+  .booth-title h3,
+  .today-score-card strong {
+    font-size: 34px;
   }
 }
 
