@@ -466,6 +466,52 @@ td .subtle {
   gap: 8px;
 }
 
+.expense-quick-grid {
+  display: grid;
+  grid-template-columns: 150px 190px minmax(220px, 1fr) 150px 150px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.quick-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.quick-chip-row button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff7e8;
+  color: #604326;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.recurring-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.recurring-row {
+  display: grid;
+  grid-template-columns: 82px 190px minmax(220px, 1fr) 150px 88px auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf9;
+}
+
+.recurring-active {
+  margin: 0;
+}
+
 .movement-editor {
   display: grid;
   grid-template-columns: minmax(180px, 1.2fr) 150px 160px 120px minmax(220px, 1fr) auto;
@@ -579,6 +625,8 @@ td .subtle {
   .cloud-settings,
   .flavor-grid,
   .expense-editor,
+  .expense-quick-grid,
+  .recurring-row,
   .movement-editor {
     grid-template-columns: 1fr;
   }

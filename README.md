@@ -60,6 +60,15 @@ Open **Import Report** and paste a line such as:
 
 Press **Parse report**. The app shows a draft first, then you can open it in **Daily Report** and correct anything before saving.
 
+## Add Expenses
+
+Open **Expenses**.
+
+- Use **Quick Add Expense** for one-off purchases and random items.
+- Use the shortcut chips for common items such as **Cash register**, **Random item**, **Toppings/guf**, and **Ice cream purchase**.
+- Use **Monthly Expenses** for recurring payments. The seed data includes a **Cash register system** monthly template; enter the monthly amount and click **Add to month** when the bill should be recorded.
+- Expense amounts are entered in DKK and split into moms columns automatically.
+
 ## Export Data
 
 Open **Export** and choose:

@@ -9,6 +9,7 @@ export const expenseTypes: ExpenseType[] = [
   'Packaging',
   'Cleaning',
   'Rent',
+  'Cash register system',
   'Card fees',
   'Other',
 ]
@@ -125,6 +126,18 @@ export const seedData: AppData = {
     },
   ],
   expenses: [],
+  recurringExpenses: [
+    {
+      id: 'recurring-cash-register',
+      type: 'Cash register system',
+      description: 'Cash register system',
+      amount: 0,
+      paymentMethod: 'Card',
+      dayOfMonth: 1,
+      notes: 'Monthly payment. Enter the amount when you know it.',
+      active: true,
+    },
+  ],
   stockItems: [
     {
       id: 'stock-guf',

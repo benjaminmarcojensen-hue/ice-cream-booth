@@ -18,6 +18,13 @@ const drysRow = page.locator('tr').filter({ hasText: 'Drys' })
 await drysRow.locator('input[type="number"]').first().fill('4')
 assert((await text()).includes('4.067,00 kr.'), 'Changing Drys quantity should update total revenue')
 
+await page.getByRole('button', { name: 'Expenses' }).click()
+await page.getByRole('button', { name: 'Cash register' }).click()
+await page.getByLabel('Quick expense amount in DKK').fill('399')
+await page.getByRole('button', { name: 'Save expense' }).click()
+assert((await text()).includes('Cash register system'), 'Expenses should support cash register system entries')
+assert((await text()).includes('399,00 kr.'), 'Expense amounts should show as DKK')
+
 await page.getByRole('button', { name: 'Stock' }).click()
 assert((await page.textContent('body'))?.includes('Order soon'), 'Low stock should show Order soon')
 await page.getByRole('button', { name: 'Add ice cream tub' }).click()

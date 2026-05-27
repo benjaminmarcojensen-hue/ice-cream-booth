@@ -32,7 +32,19 @@ import {
 import { parseDailyReportText } from './parser'
 import { loadCloudConfig, loadData, normalizeData, resetData, saveCloudConfig, saveData } from './storage'
 import { loadCloudData, saveCloudData, testCloudConnection } from './cloudStorage'
-import type { AppData, CloudConfig, DailyReport, Expense, ExpenseType, PaymentMethod, Product, StockItem, StockMovement, StockMovementType } from './types'
+import type {
+  AppData,
+  CloudConfig,
+  DailyReport,
+  Expense,
+  ExpenseType,
+  PaymentMethod,
+  Product,
+  RecurringExpense,
+  StockItem,
+  StockMovement,
+  StockMovementType,
+} from './types'
 
 type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'summary' | 'import' | 'export'
 type DashboardPeriod = 'day' | 'week' | 'month'
@@ -184,6 +196,17 @@ const emptyExpense = (date: string, reportId?: string): Expense => ({
   reportId,
 })
 
+const emptyRecurringExpense = (): RecurringExpense => ({
+  id: createId('recurring-expense'),
+  type: 'Cash register system',
+  description: 'Cash register system',
+  amount: 0,
+  paymentMethod: 'Card',
+  dayOfMonth: 1,
+  notes: '',
+  active: true,
+})
+
 const emptyStockItem = (name = 'New stock item', unit = 'units'): StockItem => ({
   id: createId('stock'),
   name,
@@ -218,6 +241,13 @@ const isTubStockItem = (item: StockItem) => {
   return unit.includes('tub') || name.includes('tub')
 }
 
+const recurringExpenseDate = (month: string, dayOfMonth: number) => {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const lastDay = new Date(year, monthNumber, 0).getDate()
+  const day = String(Math.min(lastDay, Math.max(1, dayOfMonth || 1))).padStart(2, '0')
+  return `${month}-${day}`
+}
+
 function App() {
   const [data, setData] = useState<AppData>(() => loadData())
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => loadCloudConfig())
@@ -229,7 +259,9 @@ function App() {
   const [reportDate, setReportDate] = useState(toInputDate())
   const [draftReport, setDraftReport] = useState<DailyReport>(() => emptyReportForDate(toInputDate(), data.products))
   const [draftExpenses, setDraftExpenses] = useState<Expense[]>([])
+  const [expenseDraft, setExpenseDraft] = useState<Expense>(() => ({ ...emptyExpense(toInputDate()), type: 'Other', description: 'Random item' }))
   const [selectedMonth, setSelectedMonth] = useState(monthKey(toInputDate()))
+  const [expenseMonth, setExpenseMonth] = useState(monthKey(toInputDate()))
   const [selectedTubFlavor, setSelectedTubFlavor] = useState(data.flavors[0] ?? 'Vanilje')
   const [movementDraft, setMovementDraft] = useState<StockMovement>(() => emptyStockMovement(data.stockItems[0]?.id))
   const [importText, setImportText] = useState('')
@@ -486,6 +518,38 @@ function App() {
 
   const removeStockMovement = (movementId: string) => {
     setData((current) => ({ ...current, stockMovements: current.stockMovements.filter((movement) => movement.id !== movementId) }))
+  }
+
+  const saveExpenseDraft = (override?: Partial<Expense>) => {
+    const expense = { ...expenseDraft, ...override, id: createId('expense'), amount: Math.max(0, override?.amount ?? expenseDraft.amount) }
+    if (expense.amount <= 0) return
+    setData((current) => ({ ...current, expenses: [expense, ...current.expenses] }))
+    setExpenseDraft({ ...emptyExpense(expense.date), type: 'Other', description: 'Random item', paymentMethod: expense.paymentMethod })
+  }
+
+  const updateRecurringExpense = (expenseId: string, patch: Partial<RecurringExpense>) => {
+    setData((current) => ({
+      ...current,
+      recurringExpenses: current.recurringExpenses.map((expense) => (expense.id === expenseId ? { ...expense, ...patch } : expense)),
+    }))
+  }
+
+  const addRecurringExpense = () => {
+    setData((current) => ({ ...current, recurringExpenses: [emptyRecurringExpense(), ...current.recurringExpenses] }))
+  }
+
+  const addRecurringExpenseForMonth = (recurring: RecurringExpense) => {
+    if (!recurring.active || recurring.amount <= 0) return
+    const expense: Expense = {
+      id: createId('expense'),
+      date: recurringExpenseDate(expenseMonth, recurring.dayOfMonth),
+      type: recurring.type,
+      description: recurring.description,
+      amount: recurring.amount,
+      paymentMethod: recurring.paymentMethod,
+      notes: recurring.notes ? `Monthly: ${recurring.notes}` : 'Monthly expense',
+    }
+    setData((current) => ({ ...current, expenses: [expense, ...current.expenses] }))
   }
 
   const loadDraftForDate = (date: string, sourceData = data) => {
@@ -862,15 +926,129 @@ function App() {
         )}
 
         {activeTab === 'expenses' && (
-          <Screen title="Expenses" kicker="Track purchases, wages, rent, fees, and other costs">
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => setData((current) => ({ ...current, expenses: [emptyExpense(toInputDate()), ...current.expenses] }))}
-            >
-              <Plus size={16} />
-              Add expense
-            </button>
+          <Screen title="Expenses" kicker="Fast expense entry and monthly recurring costs">
+            <Panel title="Quick Add Expense" icon={<Plus size={18} />}>
+              <div className="expense-quick-grid">
+                <label>
+                  Date
+                  <input type="date" value={expenseDraft.date} onChange={(event) => setExpenseDraft((current) => ({ ...current, date: event.target.value }))} />
+                </label>
+                <label>
+                  Type
+                  <select value={expenseDraft.type} onChange={(event) => setExpenseDraft((current) => ({ ...current, type: event.target.value as ExpenseType }))}>
+                    {expenseTypes.map((type) => (
+                      <option key={type}>{type}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Description
+                  <input value={expenseDraft.description} onChange={(event) => setExpenseDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Random item, receipt, supplier..." />
+                </label>
+                <label>
+                  Amount
+                  <div className="money-input">
+                    <input
+                      aria-label="Quick expense amount in DKK"
+                      inputMode="decimal"
+                      min="0"
+                      placeholder="0,00"
+                      step="0.01"
+                      type="number"
+                      value={expenseDraft.amount}
+                      onChange={(event) => setExpenseDraft((current) => ({ ...current, amount: numberValue(event.target.value) }))}
+                    />
+                    <span>kr.</span>
+                  </div>
+                </label>
+                <label>
+                  Payment
+                  <select value={expenseDraft.paymentMethod} onChange={(event) => setExpenseDraft((current) => ({ ...current, paymentMethod: event.target.value as PaymentMethod }))}>
+                    {paymentMethods.map((method) => (
+                      <option key={method}>{method}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="primary-button" type="button" disabled={expenseDraft.amount <= 0} onClick={() => saveExpenseDraft()}>
+                  <Save size={16} />
+                  Save expense
+                </button>
+              </div>
+              <div className="quick-chip-row">
+                <button type="button" onClick={() => setExpenseDraft((current) => ({ ...current, type: 'Cash register system', description: 'Cash register system', paymentMethod: 'Card' }))}>
+                  Cash register
+                </button>
+                <button type="button" onClick={() => setExpenseDraft((current) => ({ ...current, type: 'Other', description: 'Random item' }))}>
+                  Random item
+                </button>
+                <button type="button" onClick={() => setExpenseDraft((current) => ({ ...current, type: 'Toppings/guf', description: 'Toppings/guf' }))}>
+                  Toppings/guf
+                </button>
+                <button type="button" onClick={() => setExpenseDraft((current) => ({ ...current, type: 'Ice cream purchase', description: 'Ice cream purchase' }))}>
+                  Ice cream purchase
+                </button>
+              </div>
+            </Panel>
+
+            <Panel title="Monthly Expenses" icon={<ReceiptText size={18} />}>
+              <div className="toolbar">
+                <label>
+                  Month to add
+                  <input type="month" value={expenseMonth} onChange={(event) => setExpenseMonth(event.target.value)} />
+                </label>
+                <button className="secondary-button" type="button" onClick={addRecurringExpense}>
+                  <Plus size={16} />
+                  Add monthly expense
+                </button>
+              </div>
+              <div className="recurring-list">
+                {data.recurringExpenses.map((expense) => (
+                  <div className="recurring-row" key={expense.id}>
+                    <label className="inline-check recurring-active">
+                      <input type="checkbox" checked={expense.active} onChange={(event) => updateRecurringExpense(expense.id, { active: event.target.checked })} />
+                      Active
+                    </label>
+                    <select value={expense.type} onChange={(event) => updateRecurringExpense(expense.id, { type: event.target.value as ExpenseType })}>
+                      {expenseTypes.map((type) => (
+                        <option key={type}>{type}</option>
+                      ))}
+                    </select>
+                    <input value={expense.description} onChange={(event) => updateRecurringExpense(expense.id, { description: event.target.value })} />
+                    <div className="money-input">
+                      <input
+                        aria-label="Monthly expense amount in DKK"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        type="number"
+                        value={expense.amount}
+                        onChange={(event) => updateRecurringExpense(expense.id, { amount: numberValue(event.target.value) })}
+                      />
+                      <span>kr.</span>
+                    </div>
+                    <input
+                      aria-label="Day of month"
+                      min="1"
+                      max="31"
+                      type="number"
+                      value={expense.dayOfMonth}
+                      onChange={(event) => updateRecurringExpense(expense.id, { dayOfMonth: Math.min(31, Math.max(1, numberValue(event.target.value))) })}
+                    />
+                    <button className="primary-button" type="button" disabled={!expense.active || expense.amount <= 0} onClick={() => addRecurringExpenseForMonth(expense)}>
+                      Add to month
+                    </button>
+                    <button
+                      className="remove-button"
+                      type="button"
+                      onClick={() => setData((current) => ({ ...current, recurringExpenses: current.recurringExpenses.filter((entry) => entry.id !== expense.id) }))}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
             <div className="table-wrap">
               <table>
                 <thead>

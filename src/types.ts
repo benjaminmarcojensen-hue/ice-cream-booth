@@ -9,6 +9,7 @@ export type ExpenseType =
   | 'Packaging'
   | 'Cleaning'
   | 'Rent'
+  | 'Cash register system'
   | 'Card fees'
   | 'Other'
 
@@ -52,6 +53,17 @@ export type Expense = {
   reportId?: string
 }
 
+export type RecurringExpense = {
+  id: string
+  type: ExpenseType
+  description: string
+  amount: number
+  paymentMethod: PaymentMethod
+  dayOfMonth: number
+  notes: string
+  active: boolean
+}
+
 export type StockItem = {
   id: string
   name: string
@@ -91,6 +103,7 @@ export type AppData = {
   products: Product[]
   dailyReports: DailyReport[]
   expenses: Expense[]
+  recurringExpenses: RecurringExpense[]
   stockItems: StockItem[]
   stockMovements: StockMovement[]
   flavors: string[]

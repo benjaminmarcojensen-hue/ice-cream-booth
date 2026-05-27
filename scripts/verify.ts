@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { calculateDateRangeSummary, calculateReportTotals, calculateStock, getLowStockItems, getMonthRange, getWeekRange } from '../src/calculations.ts'
-import { seedData } from '../src/data.ts'
+import { expenseTypes, seedData } from '../src/data.ts'
 import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
 import { parseDailyReportText } from '../src/parser.ts'
 import type { DailyReport } from '../src/types.ts'
@@ -20,6 +20,8 @@ approx(exampleTotals.netProfit, 3248, '23/05/2026 net profit ex. moms should be 
 assert.deepEqual(getMonthRange('2026-05-23'), { start: '2026-05-01', end: '2026-05-31' }, 'Month range should use local calendar dates')
 assert.deepEqual(getWeekRange('2026-05-23'), { start: '2026-05-18', end: '2026-05-24' }, 'Week range should run Monday to Sunday')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 4060, 'Date range dashboard summary should include the seed report')
+assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
+assert(seedData.recurringExpenses.some((expense) => expense.type === 'Cash register system'), 'Seed data should include a monthly cash register expense template')
 
 const changedReport: DailyReport = {
   ...exampleReport,
