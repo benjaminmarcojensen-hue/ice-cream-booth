@@ -251,6 +251,13 @@ const formatDateLabel = (date?: string) => (date ? date.split('-').reverse().joi
 
 const getDashboardRange = (today = toInputDate()) => ({ start: today, end: today, label: 'Today' })
 
+const imagePaths = {
+  homepageHero: '/images/homepage-hero.png',
+  boothScene: '/images/booth-scene.png',
+  coupleBadge: '/images/couple-badge.png',
+  coupleCloseup: '/images/couple-closeup.png',
+} as const
+
 const recurringExpenseDate = (month: string, dayOfMonth: number) => {
   const [year, monthNumber] = month.split('-').map(Number)
   const lastDay = new Date(year, monthNumber, 0).getDate()
@@ -739,7 +746,7 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <IceCreamBowl size={28} />
+            <img src={imagePaths.coupleBadge} alt="" />
           </div>
           <div>
             <h1>{data.settings.businessName}</h1>
@@ -764,100 +771,64 @@ function App() {
         {activeTab === 'dashboard' && (
           <Screen title="Ice Cream Booth Tycoon" kicker={`${dashboardRange.label} - ${dashboardRange.start}`}>
             <section className="game-home" aria-label="Ice Cream Booth Tycoon home screen">
-              <header className="home-header-card">
-                <div className="booth-title">
-                  <span className="badge-icon">
-                    <IceCreamBowl size={24} />
-                  </span>
-                  <div>
-                    <span className="eyebrow">Booth HQ</span>
-                    <h3>{data.settings.businessName}</h3>
-                  </div>
-                </div>
-                <div className="header-level">
-                  <span>Level {levelProgress.level}</span>
-                  <strong>{levelProgress.name}</strong>
-                  <div className="xp-progress" aria-label="XP progress">
-                    <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
-                  </div>
-                  <small>
-                    {formatNumber(levelProgress.xp, 0)} XP
-                    {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
-                  </small>
-                </div>
-                <div className="header-streak">
-                  <span>Current Streak</span>
-                  <strong>{formatNumber(streaks.report, 0)} day{streaks.report === 1 ? '' : 's'}</strong>
-                  <small>Reports entered in a row</small>
-                </div>
-              </header>
+              <ImageHero
+                image={imagePaths.homepageHero}
+                kicker="Today's Score"
+                title={data.settings.businessName}
+                text={`Today's mission: ${formatKr(shopQuest.periodGoal, 0)} revenue and a clean, profitable shift.`}
+                action={<GameButton label="Enter Today's Report" icon={<ReceiptText size={18} />} onClick={() => setActiveTab('daily')} primary />}
+              />
 
-              <div className="home-dashboard-grid">
-                <article className="today-score-card">
-                  <span className="eyebrow">Today's Score</span>
-                  <strong><AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} /></strong>
-                  <p>
-                    Goal: {formatKr(shopQuest.periodGoal, 0)} - {formatNumber(Math.round(shopQuest.goalProgress * 100), 0)}% complete
-                  </p>
-                  <div className="score-progress" aria-label="Daily score progress">
-                    <i style={{ width: `${Math.round(shopQuest.goalProgress * 100)}%` }} />
-                  </div>
-                  <button className="primary-quest-button" type="button" onClick={() => setActiveTab('daily')}>
-                    Enter Today's Report
-                  </button>
-                </article>
-
-                <Metric label="Revenue" value={<AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} />} />
-                <Metric label="Profit" value={<AnimatedValue value={dashboardSummary.netProfit} formatter={(value) => formatKr(value, 0)} />} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
-                <Metric label="Expenses" value={<AnimatedValue value={dashboardSummary.expenses} formatter={(value) => formatKr(value, 0)} />} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
-                <Metric label="Margin" value={<AnimatedValue value={dashboardSummary.averageProfitMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
-
-                <article className="home-card best-seller-card">
-                  <span className="card-badge">Best Seller Today</span>
-                  <strong>{dashboardSummary.bestSellingProduct}</strong>
-                  <small>{dashboardSummary.totalItems > 0 ? `${formatNumber(dashboardSummary.totalItems, 0)} items sold today` : 'No sales entered today yet'}</small>
-                </article>
-
-                <article className={`home-card stock-alert-card ${lowStockItems.length > 0 ? 'warn' : 'good'}`}>
-                  <span className="card-badge">Stock Alerts</span>
-                  <strong>{lowStockItems.length > 0 ? `${lowStockItems.length} needs attention` : 'All clear'}</strong>
-                  {lowStockItems.length === 0 ? (
-                    <small>No low stock warnings right now.</small>
-                  ) : (
-                    <small>{lowStockItems.slice(0, 2).map(({ item }) => item.name).join(', ')}</small>
-                  )}
-                </article>
-
-                <article className="home-card mission-home-card">
-                  <span className="card-badge">Daily Mission</span>
-                  <strong>Beat {formatKr(data.settings.dailyRevenueGoal, 0)}</strong>
-                  <small>Profit streak: {formatNumber(streaks.profitable, 0)} day{streaks.profitable === 1 ? '' : 's'}</small>
-                  <div className="mini-progress">
-                    <i style={{ width: `${Math.round(shopQuest.goalProgress * 100)}%` }} />
-                  </div>
-                </article>
-
-                <article className="home-card achievements-home-card">
-                  <span className="card-badge">Recent Achievements</span>
-                  <strong>{formatNumber(unlockedAchievements.length, 0)} unlocked</strong>
-                  <div className="mini-achievements">
-                    {(recentAchievements.length ? recentAchievements : achievements.slice(0, 4)).map((achievement) => (
-                      <span className={achievement.unlocked ? 'unlocked' : ''} key={achievement.id}>
-                        {achievement.title}
-                        {achievement.unlockDate ? ` - ${formatDateLabel(achievement.unlockDate)}` : ''}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-
-                <nav className="home-actions" aria-label="Main dashboard actions">
-                  <button type="button" onClick={() => setActiveTab('stock')}>Stock</button>
-                  <button type="button" onClick={() => setActiveTab('expenses')}>Expenses</button>
-                  <button type="button" onClick={() => setActiveTab('summary')}>Reports</button>
-                  <button type="button" onClick={() => setActiveTab('pricing')}>Products</button>
-                  <button type="button" onClick={() => setActiveTab('achievements')}>Achievements</button>
-                </nav>
+              <div className="premium-dashboard-grid">
+                <BoothLevelCard levelProgress={levelProgress} streak={streaks.report} badgeImage={imagePaths.coupleBadge} />
+                <MascotTip
+                  image={imagePaths.coupleCloseup}
+                  title={lowStockItems.length > 0 ? 'Stock needs attention' : 'Booth helper'}
+                  message={lowStockItems.length > 0 ? `${lowStockItems[0].item.name} is getting low. Open Stock before the next rush.` : "Nice setup. Add today's report when the booth closes to keep your streak alive."}
+                  tone={lowStockItems.length > 0 ? 'warn' : 'good'}
+                />
+                <StatCard label="Today's Revenue" value={<AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} />
+                <StatCard label="Today's Profit" value={<AnimatedValue value={dashboardSummary.netProfit} formatter={(value) => formatKr(value, 0)} />} icon={<Trophy size={20} />} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
+                <StatCard label="Items Sold" value={<AnimatedValue value={dashboardSummary.totalItems} formatter={(value) => formatNumber(value, 0)} />} icon={<IceCreamBowl size={20} />} />
+                <StatCard label="Expenses Today" value={<AnimatedValue value={dashboardSummary.expenses} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
+                <StatCard label="Profit Margin" value={<AnimatedValue value={dashboardSummary.averageProfitMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} icon={<BarChart3 size={20} />} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
+                <StatCard label="Best Seller Today" value={dashboardSummary.bestSellingProduct} icon={<IceCreamBowl size={20} />} note={dashboardSummary.totalItems > 0 ? `${formatNumber(dashboardSummary.totalItems, 0)} items sold` : 'No sales today yet'} />
+                <StatCard label="Low Stock Warnings" value={lowStockItems.length > 0 ? `${lowStockItems.length} alert${lowStockItems.length === 1 ? '' : 's'}` : 'All clear'} icon={<AlertTriangle size={20} />} tone={lowStockItems.length > 0 ? 'warn' : 'good'} note={lowStockItems.slice(0, 2).map(({ item }) => item.name).join(', ') || 'Shelves look ready'} />
+                <ReportChartCard
+                  title="Today's Menu Board"
+                  rows={dashboardSummary.productBreakdown.slice(0, 5).map((entry) => ({ label: entry.product, value: entry.quantity, display: `${formatNumber(entry.quantity, 0)} sold` }))}
+                  emptyImage={imagePaths.coupleBadge}
+                />
               </div>
+
+              <section className="booth-world-card">
+                <img src={imagePaths.boothScene} alt="Ice cream booth world" />
+                <div>
+                  <span className="eyebrow">Ice Cream Booth World</span>
+                  <h3>Run the booth like a tiny empire.</h3>
+                  <p>Keep the freezer full, watch the cash register, and build a clean streak of profitable days together.</p>
+                  <div className="booth-world-actions">
+                    <GameButton label="Stock" icon={<PackageCheck size={18} />} onClick={() => setActiveTab('stock')} />
+                    <GameButton label="Reports" icon={<ReceiptText size={18} />} onClick={() => setActiveTab('summary')} />
+                  </div>
+                </div>
+              </section>
+
+              <nav className="booth-navigation-grid" aria-label="Booth game navigation">
+                <BoothNavigationCard title="Freezer" label="Stock" image={imagePaths.boothScene} icon={<PackageCheck size={20} />} onClick={() => setActiveTab('stock')} />
+                <BoothNavigationCard title="Cash Register" label="Sales" image={imagePaths.homepageHero} icon={<WalletCards size={20} />} onClick={() => setActiveTab('daily')} />
+                <BoothNavigationCard title="Menu Board" label="Product Pricing" image={imagePaths.coupleBadge} icon={<IceCreamBowl size={20} />} onClick={() => setActiveTab('pricing')} />
+                <BoothNavigationCard title="Toppings Shelf" label="Ingredients" image={imagePaths.coupleCloseup} icon={<PackageCheck size={20} />} onClick={() => { setStockFilter('Toppings'); setActiveTab('stock') }} />
+                <BoothNavigationCard title="Clipboard" label="Reports" image={imagePaths.coupleBadge} icon={<ReceiptText size={20} />} onClick={() => setActiveTab('summary')} />
+                <BoothNavigationCard title="Softice Machine" label="Softice stats" image={imagePaths.boothScene} icon={<BarChart3 size={20} />} onClick={() => setActiveTab('summary')} />
+              </nav>
+
+              <section className="achievement-strip" aria-label="Dashboard achievements">
+                <h3>Recent Achievements</h3>
+                {(recentAchievements.length ? recentAchievements : achievements.slice(0, 5)).map((achievement) => (
+                  <AchievementBadge achievement={achievement} image={imagePaths.coupleBadge} key={achievement.id} />
+                ))}
+              </section>
             </section>
           </Screen>
         )}
@@ -1388,7 +1359,7 @@ function App() {
               </div>
               <div className="shelf-grid">
                 {filteredInventoryCards.map((item) => (
-                  <ShelfCard
+                  <StockShelfCard
                     feedback={stockFeedback?.stockItemId === item.id ? stockFeedback.message : undefined}
                     item={item}
                     key={item.id}
@@ -1976,6 +1947,127 @@ function Metric({ label, value, tone = 'neutral' }: { label: string; value: Reac
   )
 }
 
+function StatCard({
+  icon,
+  label,
+  note,
+  tone = 'neutral',
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  note?: string
+  tone?: 'neutral' | 'good' | 'bad' | 'warn'
+  value: React.ReactNode
+}) {
+  return (
+    <article className={`stat-card ${tone}`}>
+      <span className="stat-icon">{icon}</span>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {note && <small>{note}</small>}
+    </article>
+  )
+}
+
+function GameButton({ icon, label, onClick, primary = false }: { icon: React.ReactNode; label: string; onClick: () => void; primary?: boolean }) {
+  return (
+    <button className={primary ? 'game-button primary' : 'game-button'} type="button" onClick={onClick}>
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+function BoothLevelCard({ badgeImage, levelProgress, streak }: { badgeImage: string; levelProgress: LevelProgress; streak: number }) {
+  return (
+    <article className="booth-level-card">
+      <img src={badgeImage} alt="" />
+      <div>
+        <span className="eyebrow">Booth Level</span>
+        <strong>Level {levelProgress.level}: {levelProgress.name}</strong>
+        <small>
+          {formatNumber(levelProgress.xp, 0)} XP
+          {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
+        </small>
+      </div>
+      <div className="xp-progress" aria-label="Booth XP progress">
+        <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
+      </div>
+      <b>Current Streak: {formatNumber(streak, 0)} day{streak === 1 ? '' : 's'}</b>
+    </article>
+  )
+}
+
+function MascotTip({ image, message, title, tone = 'neutral' }: { image: string; message: string; title: string; tone?: 'neutral' | 'good' | 'warn' }) {
+  return (
+    <article className={`mascot-tip ${tone}`}>
+      <img src={image} alt="" />
+      <div>
+        <span className="card-badge">{title}</span>
+        <p>{message}</p>
+      </div>
+    </article>
+  )
+}
+
+function ImageHero({ action, image, kicker, text, title }: { action: React.ReactNode; image: string; kicker: string; text: string; title: string }) {
+  return (
+    <header className="image-hero">
+      <img src={image} alt="Ice cream booth hero" />
+      <div className="image-hero-content">
+        <span className="eyebrow">{kicker}</span>
+        <h3>{title}</h3>
+        <p>{text}</p>
+        {action}
+      </div>
+    </header>
+  )
+}
+
+function BoothNavigationCard({ icon, image, label, onClick, title }: { icon: React.ReactNode; image: string; label: string; onClick: () => void; title: string }) {
+  return (
+    <button className="booth-nav-card" type="button" onClick={onClick}>
+      <img src={image} alt="" />
+      <span>{icon}</span>
+      <strong>{title}</strong>
+      <small>{label}</small>
+    </button>
+  )
+}
+
+function AchievementBadge({ achievement, image }: { achievement: Achievement; image: string }) {
+  return (
+    <article className={`achievement-badge ${achievement.unlocked ? 'unlocked' : 'locked'}`}>
+      <img src={image} alt="" />
+      <div>
+        <span>{achievement.unlocked ? 'Unlocked' : 'Locked'}</span>
+        <strong>{achievement.title}</strong>
+        <small>{achievement.unlocked ? formatDateLabel(achievement.unlockDate) : 'Keep playing the booth'}</small>
+      </div>
+    </article>
+  )
+}
+
+function ReportChartCard({ emptyImage, rows, title }: { emptyImage: string; rows: { label: string; value: number; display?: string }[]; title: string }) {
+  return (
+    <article className="report-chart-card">
+      <header>
+        <BarChart3 size={18} />
+        <h3>{title}</h3>
+      </header>
+      {rows.length ? (
+        <MiniBars rows={rows} />
+      ) : (
+        <div className="chart-empty-state">
+          <img src={emptyImage} alt="" />
+          <p>No sales on the board yet.</p>
+        </div>
+      )}
+    </article>
+  )
+}
+
 function StreakCard({ label, value, note }: { label: string; value: number; note: string }) {
   return (
     <div className="streak-card">
@@ -2061,7 +2153,7 @@ function RestockMissionPanel({ items }: { items: InventoryCard[] }) {
   )
 }
 
-function ShelfCard({
+function StockShelfCard({
   feedback,
   item,
   onQuickAdd,
