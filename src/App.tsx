@@ -347,13 +347,13 @@ const getDayResult = (
   )
   const message =
     achievementsUnlockedToday.length > 0
-      ? 'New achievement unlocked. The booth is leveling up.'
+      ? 'New achievement unlocked. IsVognen is leveling up.'
       : stockWarnings > 0
       ? 'Stock is getting low. Restock mission unlocked.'
       : totals.netProfit > 0 && totals.totalRevenue >= dailyGoal
-        ? 'Great day at the booth. Profit streak continues.'
+        ? 'Great day at IsVognen. Profit streak continues.'
         : totals.netProfit > 0
-          ? 'Nice work. The booth finished in profit.'
+          ? 'Nice work. IsVognen finished in profit.'
           : 'Day saved. Tomorrow is a fresh mission.'
 
   return {
@@ -835,7 +835,7 @@ function App() {
           </div>
           <div>
             <h1>{data.settings.businessName}</h1>
-            <span>Daily booth reporting</span>
+            <span>Daily IsVognen reporting</span>
           </div>
         </div>
 
@@ -854,8 +854,8 @@ function App() {
 
       <main className="content">
         {activeTab === 'dashboard' && (
-          <Screen title="Ice Cream Booth Tycoon" kicker={`${dashboardRange.label} - ${getDashboardRangeLabel(dashboardRange.start, dashboardRange.end)}`}>
-            <section className="game-home" aria-label="Ice Cream Booth Tycoon home screen">
+          <Screen title="IsVognen" kicker={`${dashboardRange.label} - ${getDashboardRangeLabel(dashboardRange.start, dashboardRange.end)}`}>
+            <section className="game-home" aria-label="IsVognen home screen">
               <div className="dashboard-period-toolbar" aria-label="Dashboard period controls">
                 <div className="period-filter" role="group" aria-label="Dashboard period">
                   {dashboardPeriods.map((period) => (
@@ -884,8 +884,8 @@ function App() {
                 <BoothLevelCard levelProgress={levelProgress} streak={streaks.report} badgeImage={imagePaths.coupleBadge} />
                 <MascotTip
                   image={imagePaths.coupleCloseup}
-                  title={lowStockItems.length > 0 ? 'Stock needs attention' : 'Booth helper'}
-                  message={lowStockItems.length > 0 ? `${lowStockItems[0].item.name} is getting low. Open Stock before the next rush.` : "Nice setup. Add today's report when the booth closes to keep your streak alive."}
+                  title={lowStockItems.length > 0 ? 'Stock needs attention' : 'IsVognen helper'}
+                  message={lowStockItems.length > 0 ? `${lowStockItems[0].item.name} is getting low. Open Stock before the next rush.` : "Nice setup. Add today's report when IsVognen closes to keep your streak alive."}
                   tone={lowStockItems.length > 0 ? 'warn' : 'good'}
                 />
                 <StatCard label={currentDashboardCopy.revenue} value={<AnimatedValue value={dashboardSummary.totalRevenue} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} />
@@ -903,10 +903,10 @@ function App() {
               </div>
 
               <section className="booth-world-card">
-                <img src={imagePaths.boothScene} alt="Ice cream booth world" />
+                <img src={imagePaths.boothScene} alt="IsVognen scene" />
                 <div>
-                  <span className="eyebrow">Ice Cream Booth World</span>
-                  <h3>Run the booth like a tiny empire.</h3>
+                  <span className="eyebrow">IsVognen World</span>
+                  <h3>Run IsVognen like a tiny empire.</h3>
                   <p>Keep the freezer full, watch the cash register, and build a clean streak of profitable days together.</p>
                   <div className="booth-world-actions">
                     <GameButton label="Stock" icon={<PackageCheck size={18} />} onClick={() => setActiveTab('stock')} />
@@ -915,7 +915,7 @@ function App() {
                 </div>
               </section>
 
-              <nav className="booth-navigation-grid" aria-label="Booth game navigation">
+              <nav className="booth-navigation-grid" aria-label="IsVognen navigation">
                 <BoothNavigationCard title="Freezer" label="Stock" image={imagePaths.boothScene} icon={<PackageCheck size={20} />} onClick={() => setActiveTab('stock')} />
                 <BoothNavigationCard title="Cash Register" label="Sales" image={imagePaths.homepageHero} icon={<WalletCards size={20} />} onClick={() => setActiveTab('daily')} />
                 <BoothNavigationCard title="Menu Board" label="Product Pricing" image={imagePaths.coupleBadge} icon={<IceCreamBowl size={20} />} onClick={() => setActiveTab('pricing')} />
@@ -1955,7 +1955,7 @@ function App() {
                 </div>
                 <p className={cloudStatus.includes('error') || cloudStatus.includes('failed') ? 'sync-status bad' : 'sync-status'}>{cloudStatus}</p>
                 <p className="muted">
-                  Run the SQL in <code>supabase-setup.sql</code> first. With no login, anyone who has the site and anon key can edit the shared booth data.
+                  Run the SQL in <code>supabase-setup.sql</code> first. With no login, anyone who has the site and anon key can edit the shared IsVognen data.
                 </p>
               </div>
             </Panel>
@@ -2109,14 +2109,14 @@ function BoothLevelCard({ badgeImage, levelProgress, streak }: { badgeImage: str
     <article className="booth-level-card">
       <img src={badgeImage} alt="" />
       <div>
-        <span className="eyebrow">Booth Level</span>
+        <span className="eyebrow">IsVognen Level</span>
         <strong>Level {levelProgress.level}: {levelProgress.name}</strong>
         <small>
           {formatNumber(levelProgress.xp, 0)} XP
           {levelProgress.xpNeeded > 0 ? ` - ${formatNumber(Math.max(0, levelProgress.xpNeeded - levelProgress.xpIntoLevel), 0)} XP to next level` : ' - Max level reached'}
         </small>
       </div>
-      <div className="xp-progress" aria-label="Booth XP progress">
+      <div className="xp-progress" aria-label="IsVognen XP progress">
         <i style={{ width: `${Math.round(levelProgress.progress * 100)}%` }} />
       </div>
       <b>Current Streak: {formatNumber(streak, 0)} day{streak === 1 ? '' : 's'}</b>
@@ -2139,7 +2139,7 @@ function MascotTip({ image, message, title, tone = 'neutral' }: { image: string;
 function ImageHero({ action, image, kicker, text, title }: { action: React.ReactNode; image: string; kicker: string; text: string; title: string }) {
   return (
     <header className="image-hero">
-      <img src={image} alt="Ice cream booth hero" />
+      <img src={image} alt="IsVognen hero" />
       <div className="image-hero-content">
         <span className="eyebrow">{kicker}</span>
         <h3>{title}</h3>
@@ -2168,7 +2168,7 @@ function AchievementBadge({ achievement, image }: { achievement: Achievement; im
       <div>
         <span>{achievement.unlocked ? 'Unlocked' : 'Locked'}</span>
         <strong>{achievement.title}</strong>
-        <small>{achievement.unlocked ? formatDateLabel(achievement.unlockDate) : 'Keep playing the booth'}</small>
+        <small>{achievement.unlocked ? formatDateLabel(achievement.unlockDate) : 'Keep building IsVognen'}</small>
       </div>
     </article>
   )

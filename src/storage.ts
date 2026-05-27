@@ -3,6 +3,7 @@ import type { AppData, CloudConfig } from './types'
 
 const STORAGE_KEY = 'ice-cream-booth-data-v1'
 const CLOUD_CONFIG_KEY = 'ice-cream-booth-cloud-config-v1'
+const OLD_BUSINESS_NAMES = new Set(['Isvognen / Ice Cream Booth', 'Ice Cream Booth', 'Ice Cream Booth Tycoon'])
 
 export const cloneSeedData = (): AppData => JSON.parse(JSON.stringify(seedData)) as AppData
 
@@ -20,6 +21,7 @@ export const normalizeData = (data: Partial<AppData>): AppData => {
       ...seed.settings,
       ...savedSettings,
       dailyRevenueGoal: shouldMigrateShopQuestGoal ? seed.settings.dailyRevenueGoal : (savedSettings.dailyRevenueGoal ?? seed.settings.dailyRevenueGoal),
+      businessName: !savedSettings.businessName || OLD_BUSINESS_NAMES.has(savedSettings.businessName) ? seed.settings.businessName : savedSettings.businessName,
       shopQuestGoalVersion: seed.settings.shopQuestGoalVersion,
     },
   }

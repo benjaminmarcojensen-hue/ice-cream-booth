@@ -75,7 +75,7 @@ export type InventoryCard = {
   lastRestocked?: string
 }
 
-const levelNames = ['New Booth', 'Local Favorite', 'Harbor Hit', 'Summer Legend', 'Ice Cream Empire']
+const levelNames = ['IsVognen Start', 'Local Favorite', 'Harbor Hit', 'Summer Legend', 'IsVognen Empire']
 const levelThresholds = [0, 250, 750, 1500, 3000]
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : 0))
@@ -255,7 +255,7 @@ export const getAchievements = (data: AppData, level: LevelProgress): Achievemen
     achievement('no-waste', 'No Waste Day', 'Save a sales report with no logged waste that day.', soldReportsByDate.find((report) => !wasteDates.has(report.date))?.date),
     achievement('stock-master', 'Stock Master', 'Keep every tracked stock item above its minimum level.', stockMasterDate),
     achievement('guf-master', 'Guf Master', 'Sell 25 portions of guf.', firstGufMasterDate),
-    achievement('ice-cream-boss', 'Ice Cream Boss', 'Reach level 5 or 50.000 kr lifetime revenue.', bossDate),
+    achievement('ice-cream-boss', 'IsVognen Boss', 'Reach level 5 or 50.000 kr lifetime revenue.', bossDate),
   ]
 }
 

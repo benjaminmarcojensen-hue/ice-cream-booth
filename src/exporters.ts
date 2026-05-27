@@ -24,7 +24,7 @@ export const downloadCsv = (fileName: string, rows: Record<string, unknown>[]) =
 }
 
 export const downloadJsonBackup = (data: AppData) => {
-  downloadFile(`ice-cream-booth-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json')
+  downloadFile(`isvognen-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json')
 }
 
 export const dailyReportsRows = (data: AppData) =>
@@ -150,7 +150,7 @@ export const downloadWorkbook = (data: AppData, selectedMonth: string) => {
     MonthlySummary: monthlySummaryRows(summary),
   }
 
-  downloadXlsx(`ice-cream-booth-${selectedMonth}.xlsx`, sheets)
+  downloadXlsx(`isvognen-${selectedMonth}.xlsx`, sheets)
 }
 
 const xml = (value: unknown) =>

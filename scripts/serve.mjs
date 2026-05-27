@@ -35,5 +35,5 @@ const server = createServer(async (request, response) => {
 })
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Ice Cream Booth app running at http://127.0.0.1:${port}/`)
+  console.log(`IsVognen app running at http://127.0.0.1:${port}/`)
 })

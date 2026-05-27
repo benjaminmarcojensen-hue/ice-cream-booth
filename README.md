@@ -1,6 +1,6 @@
-# Ice Cream Booth Reporting App
+# IsVognen
 
-A beginner-friendly local web app for daily ice cream booth reports. It tracks sales, costs, expenses, profit, stock alerts, monthly summaries, and backups for Google Sheets or Excel.
+A beginner-friendly local web app for daily IsVognen reports. It tracks sales, costs, expenses, profit, stock alerts, monthly summaries, and backups for Google Sheets or Excel.
 
 ## Install
 
@@ -37,9 +37,9 @@ That report calculates to `4.060 kr.` sales incl. moms, `3.248 kr.` sales ex. mo
 
 ## Dashboard Overview
 
-Open **Dashboard** and use the period filter for **Today**, **This week**, or **This month**. The dashboard shows one period at a time and includes **Shop Quest**, a light gamification panel with goal progress, report streak, scoop score, and achievement badges.
+Open **Dashboard** and use the period filter for **Today**, **This week**, or **This month**. The dashboard shows one period at a time with goal progress, report streak, score, and achievement badges.
 
-Open **Product Pricing** to edit the daily sales goal used by Shop Quest. The default is `800 kr.` per day, shown as `800 kr.` today, `5.600 kr.` weekly, and `24.000 kr.` monthly.
+Open **Product Pricing** to edit the daily IsVognen sales goal. The default is `800 kr.` per day, shown as `800 kr.` today, `5.600 kr.` weekly, and `24.000 kr.` monthly.
 
 ## Add Stock Items
 
@@ -128,10 +128,10 @@ Data is stored locally in your browser using `localStorage`.
 
 Open **Product Pricing** to edit selling prices, costs, and VAT/moms settings.
 
-The default setup follows normal Danish VAT handling for a moms-registered booth:
+The default setup follows normal Danish VAT handling for moms-registered sales:
 
 - Moms rate is `25%`.
-- Sales prices are entered incl. moms because that is what customers pay at the booth.
+- Sales prices are entered incl. moms because that is what customers pay.
 - Product costs and expenses are entered incl. moms by default.
 - Profit is calculated ex. moms because moms is collected for, or reclaimed from, Skattestyrelsen.
 - Moms payable is calculated as sales moms minus deductible moms on product costs and expenses.

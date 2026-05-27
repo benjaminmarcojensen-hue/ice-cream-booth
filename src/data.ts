@@ -188,6 +188,6 @@ export const seedData: AppData = {
     shopQuestGoalVersion: 1,
     gufBucketPriceExVat: 639.66,
     gufPortionsPerBucket: 100,
-    businessName: 'Isvognen / Ice Cream Booth',
+    businessName: 'IsVognen',
   },
 }
