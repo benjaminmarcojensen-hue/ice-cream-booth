@@ -10,10 +10,12 @@ export const normalizeData = (data: Partial<AppData>): AppData => {
   const seed = cloneSeedData()
   const savedSettings = data.settings ?? {}
   const shouldMigrateShopQuestGoal = savedSettings.shopQuestGoalVersion !== seed.settings.shopQuestGoalVersion
+  const stockItems = (data.stockItems ?? seed.stockItems).map((item) => ({ ...item, costPerUnit: item.costPerUnit ?? 0 }))
 
   return {
     ...seed,
     ...data,
+    stockItems,
     settings: {
       ...seed.settings,
       ...savedSettings,

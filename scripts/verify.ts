@@ -33,7 +33,7 @@ assert.equal(getBusinessStreaks(seedData, '2026-05-23').report, 1, 'Gamified rep
 assert(getAchievements(seedData, getLevelProgress(seedXp)).some((achievement) => achievement.id === 'first-sale' && achievement.unlocked), 'First Sale achievement should unlock from seed report')
 assert.equal(getBusinessHealth(seedData, calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24'), '2026-05-18', '2026-05-24').score > 0, true, 'Business health should calculate a positive score')
 assert(getProductPerformance(seedData, '2026-05-18', '2026-05-24', '2026-05-23').some((entry) => entry.badge === 'Best Seller'), 'Product performance should identify a best seller')
-assert(getInventoryCards(seedData).some((entry) => entry.label === 'Restock Soon' || entry.label === 'Critical'), 'Inventory cards should surface low stock states')
+assert(getInventoryCards(seedData).some((entry) => entry.status === 'out' || entry.status === 'critical' || entry.status === 'low'), 'Inventory cards should surface urgent stock states')
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 4000, shopQuestGoalVersion: 0 } }).settings.dailyRevenueGoal, 800, 'Old saved Shop Quest goal should migrate to 800 kr.')
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 1200, shopQuestGoalVersion: 1 } }).settings.dailyRevenueGoal, 1200, 'User-edited current goal should be preserved')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
@@ -80,6 +80,7 @@ assert(pricingRows(seedData).length === seedData.products.length, 'Pricing CSV r
 assert('profitPerSaleExVat' in pricingRows(seedData)[0], 'Pricing CSV should calculate profit ex. moms')
 assert(Array.isArray(expensesRows(seedData)), 'Expenses CSV rows should be generated')
 assert(stockRows(seedData).some((row) => row.reorderAlert === 'Order soon'), 'Stock CSV rows should include reorder alerts')
+assert(stockRows(seedData).some((row) => 'stockValue' in row && 'costPerUnit' in row), 'Stock CSV rows should include inventory value fields')
 assert(Array.isArray(stockMovementRows(seedData)), 'Stock movement CSV rows should be generated')
 assert(monthlySummaryRows({
   ...exampleTotals,

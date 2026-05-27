@@ -59,12 +59,19 @@ export type InventoryCard = {
   id: string
   name: string
   unit: string
+  category: 'Ingredients' | 'Packaging' | 'Toppings' | 'Other'
   currentStock: number
   minimumStock: number
+  targetStock: number
   usedStock: number
+  estimatedDaysLeft: number | null
+  costPerUnit: number
+  stockValue: number
   progress: number
-  status: 'good' | 'low' | 'critical'
-  label: 'Healthy Stock' | 'Restock Soon' | 'Critical'
+  status: 'full' | 'good' | 'low' | 'critical' | 'out'
+  label: 'Full' | 'Good' | 'Low' | 'Critical' | 'Out of Stock'
+  restockQuantity: number
+  lastRestocked?: string
 }
 
 const levelNames = ['New Booth', 'Local Favorite', 'Harbor Hit', 'Summer Legend', 'Ice Cream Empire']
@@ -73,6 +80,32 @@ const levelThresholds = [0, 250, 750, 1500, 3000]
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : 0))
 
 const reportsWithSales = (reports: DailyReport[]) => reports.filter((report) => report.items.some((item) => item.quantity > 0))
+
+const getRecentDailyUsage = (data: AppData, item: AppData['stockItems'][number], days = 14) => {
+  const end = toInputDate()
+  const start = addDays(end, -(days - 1))
+  const linkedSales = item.linkedProductId
+    ? data.dailyReports
+        .filter((report) => report.date >= start && report.date <= end)
+        .reduce((sum, report) => sum + report.items.reduce((itemSum, reportItem) => itemSum + (reportItem.productId === item.linkedProductId ? reportItem.quantity : 0), 0), 0)
+    : 0
+  const loggedRemoved = data.stockMovements
+    .filter((movement) => movement.stockItemId === item.id && movement.date >= start && movement.date <= end)
+    .reduce((sum, movement) => sum + (movement.type === 'Used' || movement.type === 'Waste' || movement.type === 'Adjustment -' ? Math.max(0, movement.quantity || 0) : 0), 0)
+
+  return (linkedSales + loggedRemoved) / days
+}
+
+const getInventoryCategory = (data: AppData, item: AppData['stockItems'][number]): InventoryCard['category'] => {
+  const linkedProduct = item.linkedProductId ? data.products.find((product) => product.id === item.linkedProductId) : undefined
+  const name = item.name.toLowerCase()
+  if (linkedProduct?.category === 'Topping' || linkedProduct?.category === 'Add-on') return 'Toppings'
+  if (linkedProduct?.category === 'Kugleis' || linkedProduct?.category === 'Softice') return 'Ingredients'
+  if (/(cone|waffle|cup|napkin|spoon|box|pack|bæger|serviet|ske|vaffel)/.test(name)) return 'Packaging'
+  if (/(guf|drys|topping|sauce|sprinkle|sylt|fløde)/.test(name)) return 'Toppings'
+  if (/(tub|ice|cream|softice|kugle|milk|slush)/.test(name)) return 'Ingredients'
+  return 'Other'
+}
 
 export const calculateBusinessXp = (data: AppData) =>
   reportsWithSales(data.dailyReports).reduce((xp, report) => {
@@ -218,22 +251,52 @@ export const getProductPerformance = (data: AppData, startDate: string, endDate:
 }
 
 export const getInventoryCards = (data: AppData): InventoryCard[] =>
-  data.stockItems.map((item) => {
-    const stock = calculateStock(item, data.dailyReports, data.stockMovements)
-    const target = Math.max(item.minimumStockLevel * 2, item.startingStock + item.addedStock + stock.movementAdded, 1)
-    const progress = clamp(stock.currentStock / target)
-    const criticalLimit = item.minimumStockLevel > 0 ? item.minimumStockLevel * 0.5 : 0
-    const status: InventoryCard['status'] = stock.currentStock <= criticalLimit ? 'critical' : stock.currentStock < item.minimumStockLevel ? 'low' : 'good'
+  data.stockItems
+    .map((item) => {
+      const stock = calculateStock(item, data.dailyReports, data.stockMovements)
+      const target = Math.max(item.minimumStockLevel * 2, item.startingStock + item.addedStock + stock.movementAdded, stock.currentStock, 1)
+      const progress = clamp(stock.currentStock / target)
+      const averageDailyUsage = getRecentDailyUsage(data, item)
+      const estimatedDaysLeft = averageDailyUsage > 0 ? stock.currentStock / averageDailyUsage : null
+      const status: InventoryCard['status'] =
+        stock.currentStock <= 0
+          ? 'out'
+          : progress <= 0.25
+            ? 'critical'
+            : progress <= 0.5
+              ? 'low'
+              : progress <= 0.75
+                ? 'good'
+                : 'full'
+      const lastRestocked = data.stockMovements
+        .filter((movement) => movement.stockItemId === item.id && (movement.type === 'Received' || movement.type === 'Adjustment +'))
+        .sort((a, b) => b.date.localeCompare(a.date))[0]?.date
 
-    return {
-      id: item.id,
-      name: item.name,
-      unit: item.unit,
-      currentStock: stock.currentStock,
-      minimumStock: item.minimumStockLevel,
-      usedStock: stock.usedStock,
-      progress,
-      status,
-      label: status === 'critical' ? 'Critical' : status === 'low' ? 'Restock Soon' : 'Healthy Stock',
-    }
-  })
+      return {
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        category: getInventoryCategory(data, item),
+        currentStock: stock.currentStock,
+        minimumStock: item.minimumStockLevel,
+        targetStock: target,
+        usedStock: stock.usedStock,
+        estimatedDaysLeft,
+        costPerUnit: item.costPerUnit,
+        stockValue: Math.max(0, stock.currentStock) * item.costPerUnit,
+        progress,
+        status,
+        label: status === 'out' ? 'Out of Stock' : status === 'critical' ? 'Critical' : status === 'low' ? 'Low' : status === 'good' ? 'Good' : 'Full',
+        restockQuantity: Math.max(0, target - stock.currentStock),
+        lastRestocked,
+      }
+    })
+    .sort((a, b) => {
+      const urgency = { out: 0, critical: 1, low: 2, good: 3, full: 4 }
+      const statusDiff = urgency[a.status] - urgency[b.status]
+      if (statusDiff !== 0) return statusDiff
+      const aDays = a.estimatedDaysLeft ?? Number.POSITIVE_INFINITY
+      const bDays = b.estimatedDaysLeft ?? Number.POSITIVE_INFINITY
+      if (aDays !== bDays) return aDays - bDays
+      return a.progress - b.progress
+    })

@@ -72,6 +72,7 @@ export type StockItem = {
   addedStock: number
   manualUsedStock: number
   minimumStockLevel: number
+  costPerUnit: number
   linkedProductId?: string
   notes: string
 }

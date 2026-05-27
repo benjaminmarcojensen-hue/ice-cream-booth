@@ -38,7 +38,12 @@ assert((await text()).includes('399,00 kr.'), 'Expense amounts should show as DK
 
 await page.getByRole('button', { name: 'Stock', exact: true }).click()
 assert((await page.textContent('body'))?.includes('Order soon'), 'Low stock should show Order soon')
-assert((await page.textContent('body'))?.includes('Inventory Screen'), 'Stock should show inventory-style cards')
+assert((await page.textContent('body'))?.includes('Storage Shelves'), 'Stock should show the storage shelf screen')
+assert((await page.textContent('body'))?.includes('Restock Mission'), 'Stock should show a restock mission panel')
+await page.getByRole('button', { name: 'Urgent Refill' }).click()
+assert((await page.textContent('body'))?.includes('Out of Stock'), 'Urgent stock filter should show out-of-stock shelves')
+await page.getByRole('button', { name: '+1' }).first().click()
+assert((await page.textContent('body'))?.includes('Shelf restocked'), 'Quick refill should update a shelf with feedback')
 await page.getByRole('button', { name: 'Add ice cream tub' }).click()
 const stockNames = await page
   .locator('tbody tr')
@@ -48,7 +53,7 @@ page.once('dialog', async (dialog) => {
   assert(dialog.message().includes('Vanilje ice cream tub'), 'Stock removal confirmation should name the item')
   await dialog.accept()
 })
-await page.getByRole('button', { name: 'Remove' }).first().click()
+await page.locator('.stock-table-wrap').getByRole('button', { name: 'Remove' }).first().click()
 assert(!(await page.textContent('body'))?.includes('Vanilje ice cream tub'), 'Stock rows should be removable')
 
 await page.getByRole('button', { name: 'Export', exact: true }).click()

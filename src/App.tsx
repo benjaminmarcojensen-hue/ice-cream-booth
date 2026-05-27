@@ -37,7 +37,7 @@ import {
   getInventoryCards,
   getLevelProgress,
 } from './gamification'
-import type { Achievement, LevelProgress } from './gamification'
+import type { Achievement, InventoryCard, LevelProgress } from './gamification'
 import type {
   AppData,
   CloudConfig,
@@ -55,6 +55,9 @@ import type {
 
 type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'summary' | 'import' | 'export'
 type IconComponent = (props: { size?: number }) => React.ReactElement
+type StockFilter = 'All' | 'Ingredients' | 'Packaging' | 'Toppings' | 'Urgent Refill' | 'Out of Stock'
+type StockActionMode = 'add' | 'use'
+type StockActionDraft = { stockItemId: string; mode: StockActionMode; quantity: number; notes: string }
 
 const IconGlyph = ({ size = 18, variant }: { size?: number; variant: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -175,6 +178,7 @@ const tabs: { id: TabId; label: string; icon: IconComponent }[] = [
 ]
 
 const stockMovementTypes: StockMovementType[] = ['Received', 'Used', 'Waste', 'Adjustment +', 'Adjustment -']
+const stockFilters: StockFilter[] = ['All', 'Ingredients', 'Packaging', 'Toppings', 'Urgent Refill', 'Out of Stock']
 
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
@@ -215,6 +219,7 @@ const emptyStockItem = (name = 'New stock item', unit = 'units'): StockItem => (
   addedStock: 0,
   manualUsedStock: 0,
   minimumStockLevel: 0,
+  costPerUnit: 0,
   notes: '',
 })
 
@@ -313,6 +318,9 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState(monthKey(toInputDate()))
   const [expenseMonth, setExpenseMonth] = useState(monthKey(toInputDate()))
   const [selectedTubFlavor, setSelectedTubFlavor] = useState(data.flavors[0] ?? 'Vanilje')
+  const [stockFilter, setStockFilter] = useState<StockFilter>('All')
+  const [stockActionDraft, setStockActionDraft] = useState<StockActionDraft | null>(null)
+  const [stockFeedback, setStockFeedback] = useState<{ stockItemId: string; message: string } | null>(null)
   const [movementDraft, setMovementDraft] = useState<StockMovement>(() => emptyStockMovement(data.stockItems[0]?.id))
   const [importText, setImportText] = useState('')
   const [parsedDraft, setParsedDraft] = useState<{ report: DailyReport; expenses: Expense[] } | null>(null)
@@ -399,6 +407,22 @@ function App() {
   const achievements = useMemo(() => getAchievements(data, levelProgress), [data, levelProgress])
   const unlockedAchievements = achievements.filter((achievement) => achievement.unlocked)
   const inventoryCards = useMemo(() => getInventoryCards(data), [data])
+  const filteredInventoryCards = useMemo(() => {
+    if (stockFilter === 'All') return inventoryCards
+    if (stockFilter === 'Urgent Refill') return inventoryCards.filter((item) => item.status === 'low' || item.status === 'critical' || item.status === 'out')
+    if (stockFilter === 'Out of Stock') return inventoryCards.filter((item) => item.status === 'out')
+    return inventoryCards.filter((item) => item.category === stockFilter)
+  }, [inventoryCards, stockFilter])
+  const stockRoomOverview = useMemo(
+    () => ({
+      totalItems: inventoryCards.length,
+      urgentItems: inventoryCards.filter((item) => item.status === 'low' || item.status === 'critical' || item.status === 'out').length,
+      outOfStock: inventoryCards.filter((item) => item.status === 'out').length,
+      totalValue: inventoryCards.reduce((sum, item) => sum + item.stockValue, 0),
+      refillNeeded: inventoryCards.find((item) => item.status === 'out' || item.status === 'critical' || item.status === 'low'),
+    }),
+    [inventoryCards],
+  )
   const shopQuest = useMemo(() => {
     const periodGoal = data.settings.dailyRevenueGoal
     const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
@@ -573,6 +597,33 @@ function App() {
     const movement = { ...movementDraft, id: createId('movement'), stockItemId, quantity: Math.max(0, movementDraft.quantity || 0) }
     setData((current) => ({ ...current, stockMovements: [movement, ...current.stockMovements] }))
     setMovementDraft(emptyStockMovement(stockItemId))
+  }
+
+  const recordShelfMovement = (stockItemId: string, mode: StockActionMode, quantity: number, notes = '') => {
+    const safeQuantity = Math.max(0, quantity || 0)
+    if (!stockItemId || safeQuantity <= 0) return
+    const movement: StockMovement = {
+      id: createId('movement'),
+      stockItemId,
+      date: toInputDate(),
+      type: mode === 'add' ? 'Received' : 'Used',
+      quantity: safeQuantity,
+      notes: notes || (mode === 'add' ? 'Shelf refill' : 'Manual shelf usage'),
+    }
+    const stockItemName = data.stockItems.find((item) => item.id === stockItemId)?.name ?? 'Shelf'
+    setData((current) => ({ ...current, stockMovements: [movement, ...current.stockMovements] }))
+    setStockFeedback({ stockItemId, message: mode === 'add' ? `Shelf restocked: +${formatNumber(safeQuantity)} ${stockItemName}` : `Stock reduced: -${formatNumber(safeQuantity)} ${stockItemName}` })
+    window.setTimeout(() => setStockFeedback((current) => (current?.stockItemId === stockItemId ? null : current)), 2200)
+  }
+
+  const openStockAction = (stockItemId: string, mode: StockActionMode) => {
+    setStockActionDraft({ stockItemId, mode, quantity: mode === 'add' ? 5 : 1, notes: '' })
+  }
+
+  const submitStockAction = () => {
+    if (!stockActionDraft) return
+    recordShelfMovement(stockActionDraft.stockItemId, stockActionDraft.mode, stockActionDraft.quantity, stockActionDraft.notes)
+    setStockActionDraft(null)
   }
 
   const removeStockMovement = (movementId: string) => {
@@ -1262,26 +1313,31 @@ function App() {
               <p className="muted">Use separate stock rows for each tub flavor, cone type, topping, packaging item, or cleaning supply.</p>
             </Panel>
 
-            <Panel title="Inventory Screen" icon={<PackageCheck size={18} />}>
-              <div className="inventory-grid">
-                {inventoryCards.map((item) => (
-                  <article className={`inventory-card ${item.status}`} key={item.id}>
-                    <header>
-                      <strong>{item.name}</strong>
-                      <span>{item.label}</span>
-                    </header>
-                    <div className="inventory-bar" aria-label={`${item.name} stock level`}>
-                      <i style={{ width: `${Math.round(item.progress * 100)}%` }} />
-                    </div>
-                    <div className="inventory-meta">
-                      <span>Current: {formatNumber(item.currentStock)} {item.unit}</span>
-                      <span>Minimum: {formatNumber(item.minimumStock)} {item.unit}</span>
-                      <span>Used: {formatNumber(item.usedStock)} {item.unit}</span>
-                    </div>
-                  </article>
+            <StockRoomOverview overview={stockRoomOverview} />
+
+            <RestockMissionPanel items={inventoryCards} />
+
+            <Panel title="Storage Shelves" icon={<PackageCheck size={18} />}>
+              <div className="stock-filter-tabs" role="group" aria-label="Stock filters">
+                {stockFilters.map((filter) => (
+                  <button className={stockFilter === filter ? 'active' : ''} key={filter} type="button" onClick={() => setStockFilter(filter)}>
+                    {filter}
+                  </button>
                 ))}
               </div>
-              {!inventoryCards.length && <p className="muted">Add stock items to build your inventory screen.</p>}
+              <div className="shelf-grid">
+                {filteredInventoryCards.map((item) => (
+                  <ShelfCard
+                    feedback={stockFeedback?.stockItemId === item.id ? stockFeedback.message : undefined}
+                    item={item}
+                    key={item.id}
+                    onQuickAdd={(quantity) => recordShelfMovement(item.id, 'add', quantity)}
+                    onRefill={() => openStockAction(item.id, 'add')}
+                    onUse={() => openStockAction(item.id, 'use')}
+                  />
+                ))}
+              </div>
+              {!filteredInventoryCards.length && <p className="muted">No stock items match this filter.</p>}
             </Panel>
 
             <Panel title="Stock Movement Log" icon={<ReceiptText size={18} />}>
@@ -1377,6 +1433,7 @@ function App() {
                     <th>Manual used</th>
                     <th>Current</th>
                     <th>Minimum</th>
+                    <th>Cost/unit</th>
                     <th>Alert</th>
                     <th>Linked product</th>
                     <th>Notes</th>
@@ -1425,6 +1482,15 @@ function App() {
                             min="0"
                             value={item.minimumStockLevel}
                             onChange={(event) => updateStock(item.id, { minimumStockLevel: numberValue(event.target.value) })}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.costPerUnit}
+                            onChange={(event) => updateStock(item.id, { costPerUnit: numberValue(event.target.value) })}
                           />
                         </td>
                         <td>{stock.reorderAlert ? <span className="pill warn">Order soon</span> : <span className="pill ok">OK</span>}</td>
@@ -1610,6 +1676,15 @@ function App() {
           </Screen>
         )}
       </main>
+      {stockActionDraft && (
+        <RefillModal
+          draft={stockActionDraft}
+          item={data.stockItems.find((stockItem) => stockItem.id === stockActionDraft.stockItemId)}
+          onChange={setStockActionDraft}
+          onClose={() => setStockActionDraft(null)}
+          onSubmit={submitStockAction}
+        />
+      )}
       {dayResult && <DayCompleteModal result={dayResult} onClose={() => setDayResult(null)} />}
     </div>
   )
@@ -1706,6 +1781,195 @@ function AchievementGrid({ achievements }: { achievements: Achievement[] }) {
           <small>{achievement.description}</small>
         </article>
       ))}
+    </div>
+  )
+}
+
+function StockRoomOverview({
+  overview,
+}: {
+  overview: { totalItems: number; urgentItems: number; outOfStock: number; totalValue: number; refillNeeded?: InventoryCard }
+}) {
+  return (
+    <section className="stock-room-overview" aria-label="Stock room overview">
+      <div className="stock-room-title">
+        <span className="eyebrow">Storage Room</span>
+        <strong>Inventory at a glance</strong>
+        <small>{overview.refillNeeded ? `Next buy: ${overview.refillNeeded.name}` : 'Shelves are in good shape.'}</small>
+      </div>
+      <Metric label="Stock items" value={<AnimatedValue value={overview.totalItems} formatter={(value) => formatNumber(value, 0)} />} />
+      <Metric label="Low stock" value={<AnimatedValue value={overview.urgentItems} formatter={(value) => formatNumber(value, 0)} />} tone={overview.urgentItems > 0 ? 'warn' : 'good'} />
+      <Metric label="Out of stock" value={<AnimatedValue value={overview.outOfStock} formatter={(value) => formatNumber(value, 0)} />} tone={overview.outOfStock > 0 ? 'bad' : 'good'} />
+      <Metric label="Stock value" value={<AnimatedValue value={overview.totalValue} formatter={(value) => formatKr(value, 0)} />} />
+    </section>
+  )
+}
+
+function RestockMissionPanel({ items }: { items: InventoryCard[] }) {
+  const urgentItems = items.filter((item) => item.status === 'low' || item.status === 'critical' || item.status === 'out').slice(0, 4)
+
+  return (
+    <Panel title="Restock Mission" icon={<AlertTriangle size={18} />}>
+      {urgentItems.length ? (
+        <div className="restock-mission-grid">
+          {urgentItems.map((item) => (
+            <article className={`restock-mission-card ${item.status}`} key={item.id}>
+              <span>{item.label}</span>
+              <strong>{item.name}</strong>
+              <p>
+                Buy about {formatNumber(item.restockQuantity)} {item.unit} to refill this shelf.
+              </p>
+              <small>
+                Current: {formatNumber(item.currentStock)} {item.unit}
+                {item.estimatedDaysLeft !== null ? ` - about ${formatNumber(item.estimatedDaysLeft, 1)} days left` : ''}
+              </small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">No urgent restock mission. Stock is healthy right now.</p>
+      )}
+    </Panel>
+  )
+}
+
+function ShelfCard({
+  feedback,
+  item,
+  onQuickAdd,
+  onRefill,
+  onUse,
+}: {
+  feedback?: string
+  item: InventoryCard
+  onQuickAdd: (quantity: number) => void
+  onRefill: () => void
+  onUse: () => void
+}) {
+  return (
+    <article className={`shelf-card ${item.status}`}>
+      <header>
+        <div>
+          <span className="shelf-category">{item.category}</span>
+          <h3>{item.name}</h3>
+        </div>
+        <span className="shelf-status">{item.label}</span>
+      </header>
+      <ShelfVisual item={item} />
+      <div className="shelf-stats">
+        <span>
+          Current
+          <strong><AnimatedValue value={item.currentStock} formatter={(value) => formatNumber(value, 0)} /> {item.unit}</strong>
+        </span>
+        <span>
+          Days left
+          <strong>{item.estimatedDaysLeft === null ? 'Not enough data' : formatNumber(item.estimatedDaysLeft, 1)}</strong>
+        </span>
+        <span>
+          Cost/unit
+          <strong>{formatKr(item.costPerUnit)}</strong>
+        </span>
+        <span>
+          Stock value
+          <strong>{formatKr(item.stockValue)}</strong>
+        </span>
+        <span>
+          Minimum
+          <strong>{formatNumber(item.minimumStock)} {item.unit}</strong>
+        </span>
+        <span>
+          Last refill
+          <strong>{item.lastRestocked ?? 'Not logged'}</strong>
+        </span>
+      </div>
+      <div className="shelf-actions">
+        <button className="primary-button" type="button" onClick={onRefill}>Refill</button>
+        <button className="secondary-button" type="button" onClick={onUse}>Use stock</button>
+      </div>
+      <div className="quick-refill-row">
+        {[1, 5, 10].map((quantity) => (
+          <button key={quantity} type="button" onClick={() => onQuickAdd(quantity)}>+{quantity}</button>
+        ))}
+      </div>
+      {feedback && <div className="shelf-feedback">{feedback}</div>}
+    </article>
+  )
+}
+
+function ShelfVisual({ item }: { item: InventoryCard }) {
+  const slots = 10
+  const filledSlots = item.status === 'out' ? 0 : Math.max(1, Math.round(item.progress * slots))
+  const visualType = getShelfVisualType(item)
+
+  return (
+    <div className="shelf-visual" aria-label={`${item.name} visual shelf fullness`}>
+      <div className="shelf-back">
+        {Array.from({ length: slots }).map((_, index) => (
+          <span className={`shelf-object ${visualType} ${index < filledSlots ? 'filled' : 'empty'}`} key={index} />
+        ))}
+      </div>
+      <div className="shelf-plank" />
+      <div className="shelf-fullness">
+        <i style={{ width: `${Math.round(item.progress * 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function getShelfVisualType(item: InventoryCard) {
+  const name = item.name.toLowerCase()
+  if (/(cone|waffle|vaffel)/.test(name)) return 'cone'
+  if (/(guf|sauce|sylt|fløde|topping)/.test(name)) return 'jar'
+  if (/(cup|bæger|napkin|serviet|spoon|ske|pack|box)/.test(name)) return 'box'
+  if (/(drys|sprinkle)/.test(name)) return 'sprinkle'
+  return 'tub'
+}
+
+function RefillModal({
+  draft,
+  item,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  draft: StockActionDraft
+  item?: StockItem
+  onChange: (draft: StockActionDraft) => void
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="refill-modal" role="dialog" aria-modal="true" aria-labelledby="refill-title">
+        <span className="eyebrow">{draft.mode === 'add' ? 'Shelf restock' : 'Manual usage'}</span>
+        <h2 id="refill-title">{draft.mode === 'add' ? 'Add stock' : 'Reduce stock'}</h2>
+        <p>{item?.name ?? 'Stock item'}</p>
+        <label>
+          Quantity
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={draft.quantity}
+            onChange={(event) => onChange({ ...draft, quantity: numberValue(event.target.value) })}
+          />
+        </label>
+        <div className="quick-refill-row">
+          {[1, 5, 10].map((quantity) => (
+            <button key={quantity} type="button" onClick={() => onChange({ ...draft, quantity })}>{quantity}</button>
+          ))}
+        </div>
+        <label>
+          Notes
+          <input value={draft.notes} onChange={(event) => onChange({ ...draft, notes: event.target.value })} placeholder="Invoice, shelf count, correction..." />
+        </label>
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button" type="button" disabled={draft.quantity <= 0} onClick={onSubmit}>
+            {draft.mode === 'add' ? 'Refill shelf' : 'Use stock'}
+          </button>
+        </div>
+      </section>
     </div>
   )
 }

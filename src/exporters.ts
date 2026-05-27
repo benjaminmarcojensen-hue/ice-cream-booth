@@ -105,6 +105,8 @@ export const stockRows = (data: AppData) =>
       usedSoldStock: stock.usedStock,
       currentStock: stock.currentStock,
       minimumStockLevel: item.minimumStockLevel,
+      costPerUnit: item.costPerUnit,
+      stockValue: Math.max(0, stock.currentStock) * item.costPerUnit,
       reorderAlert: stock.reorderAlert ? 'Order soon' : 'OK',
       notes: item.notes,
     }
