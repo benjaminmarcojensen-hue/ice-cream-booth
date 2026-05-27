@@ -60,6 +60,13 @@ page.once('dialog', async (dialog) => {
 await page.locator('.stock-table-wrap').getByRole('button', { name: 'Remove' }).first().click()
 assert(!(await page.textContent('body'))?.includes('Vanilje ice cream tub'), 'Stock rows should be removable')
 
+await page.getByRole('button', { name: 'Reports', exact: true }).click()
+assert((await text()).includes('Monthly Score'), 'Reports should show a monthly scorecard')
+assert((await text()).includes('Revenue Graph'), 'Reports should show a revenue graph')
+assert((await text()).includes('Profit Champion'), 'Reports should show a profit champion highlight')
+assert((await text()).includes('Business health'), 'Reports should show business health')
+assert((await text()).includes('Serious Review Tables'), 'Reports should keep review tables available')
+
 await page.getByRole('button', { name: 'Export', exact: true }).click()
 const csvDownload = page.waitForEvent('download')
 await page.getByRole('button', { name: 'Daily reports CSV' }).click()

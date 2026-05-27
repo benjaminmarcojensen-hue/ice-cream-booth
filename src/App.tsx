@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { expenseTypes, paymentMethods } from './data'
 import {
+  addDays,
   calculateDateRangeSummary,
   calculateMonthlySummary,
   calculateReportTotals,
@@ -10,7 +11,9 @@ import {
   formatNumber,
   getGufBucketPriceInclVat,
   getLowStockItems,
+  getMonthRange,
   getProductCost,
+  isDateInRange,
   monthKey,
   splitVat,
   toInputDate,
@@ -33,6 +36,7 @@ import {
   calculateBusinessXp,
   calculateReportXp,
   getAchievements,
+  getBusinessHealth,
   getBusinessStreaks,
   getInventoryCards,
   getLevelProgress,
@@ -181,7 +185,7 @@ const tabs: { id: TabId; label: string; icon: IconComponent }[] = [
   { id: 'expenses', label: 'Expenses', icon: WalletCards },
   { id: 'stock', label: 'Stock', icon: PackageCheck },
   { id: 'achievements', label: 'Achievements', icon: Trophy },
-  { id: 'summary', label: 'Monthly Summary', icon: ReceiptText },
+  { id: 'summary', label: 'Reports', icon: ReceiptText },
   { id: 'import', label: 'Import Report', icon: Upload },
   { id: 'export', label: 'Export', icon: Download },
 ]
@@ -439,6 +443,39 @@ function App() {
     }),
     [inventoryCards],
   )
+  const reportMonthRange = useMemo(() => getMonthRange(`${selectedMonth}-01`), [selectedMonth])
+  const monthlyReportDays = useMemo(
+    () =>
+      data.dailyReports
+        .filter((report) => isDateInRange(report.date, reportMonthRange.start, reportMonthRange.end))
+        .map((report) => ({ report, totals: calculateReportTotals(report, data.products, data.expenses, data.settings) }))
+        .sort((a, b) => a.report.date.localeCompare(b.report.date)),
+    [data.dailyReports, data.expenses, data.products, data.settings, reportMonthRange.end, reportMonthRange.start],
+  )
+  const monthlyAchievements = useMemo(
+    () => achievements.filter((achievement) => achievement.unlockDate && isDateInRange(achievement.unlockDate, reportMonthRange.start, reportMonthRange.end)),
+    [achievements, reportMonthRange.end, reportMonthRange.start],
+  )
+  const monthHealth = useMemo(() => getBusinessHealth(data, monthSummary, reportMonthRange.start, reportMonthRange.end), [data, monthSummary, reportMonthRange.end, reportMonthRange.start])
+  const reportHighlights = useMemo(() => {
+    const sellingDays = monthlyReportDays.filter((entry) => entry.totals.totalRevenue > 0)
+    const bestDay = sellingDays.reduce<(typeof sellingDays)[number] | undefined>((best, entry) => (!best || entry.totals.totalRevenue > best.totals.totalRevenue ? entry : best), undefined)
+    const worstDay = sellingDays.reduce<(typeof sellingDays)[number] | undefined>((worst, entry) => (!worst || entry.totals.netProfit < worst.totals.netProfit ? entry : worst), undefined)
+    const profitChampion = sellingDays.reduce<(typeof sellingDays)[number] | undefined>((best, entry) => (!best || entry.totals.netProfit > best.totals.netProfit ? entry : best), undefined)
+    const expenseBoss = [...monthSummary.expenseBreakdown].sort((a, b) => b.amount - a.amount)[0]
+    const topProducts = monthSummary.productBreakdown.slice(0, 5)
+    let bestSalesStreak = 0
+    let currentSalesStreak = 0
+    let previousSalesDate = ''
+    for (const entry of sellingDays) {
+      currentSalesStreak = previousSalesDate && addDays(previousSalesDate, 1) === entry.report.date ? currentSalesStreak + 1 : 1
+      bestSalesStreak = Math.max(bestSalesStreak, currentSalesStreak)
+      previousSalesDate = entry.report.date
+    }
+    const monthlyScore = Math.max(0, Math.round(monthHealth.score + monthSummary.totalItems + Math.max(0, monthSummary.netProfit) / 100 + monthlyAchievements.length * 25))
+
+    return { bestDay, worstDay, profitChampion, expenseBoss, topProducts, salesStreak: bestSalesStreak, monthlyScore }
+  }, [monthHealth.score, monthSummary.expenseBreakdown, monthSummary.netProfit, monthSummary.productBreakdown, monthSummary.totalItems, monthlyAchievements.length, monthlyReportDays])
   const shopQuest = useMemo(() => {
     const periodGoal = data.settings.dailyRevenueGoal
     const goalProgress = periodGoal > 0 ? Math.min(1, dashboardSummary.totalRevenue / periodGoal) : 0
@@ -1578,7 +1615,7 @@ function App() {
         )}
 
         {activeTab === 'summary' && (
-          <Screen title="Monthly Summary" kicker="Revenue, costs, profit, and breakdown charts">
+          <Screen title="Reports" kicker="Monthly score, trends, champions, and serious review tables">
             <div className="toolbar">
               <label>
                 Month
@@ -1589,29 +1626,145 @@ function App() {
                 Export month CSV
               </button>
             </div>
+
+            <section className="reports-hero">
+              <article className="monthly-score-card">
+                <span className="eyebrow">Monthly Score</span>
+                <strong><AnimatedValue value={reportHighlights.monthlyScore} formatter={(value) => formatNumber(value, 0)} /></strong>
+                <p>{formatKr(monthSummary.totalRevenue, 0)} sales incl. moms - {formatKr(monthSummary.netProfit, 0)} net profit ex. moms</p>
+                <div className="score-progress" aria-label="Monthly business health">
+                  <i style={{ width: `${monthHealth.score}%` }} />
+                </div>
+                <small>Business health: {monthHealth.label} ({monthHealth.score}/100)</small>
+              </article>
+              <Metric label="Best Day" value={reportHighlights.bestDay ? `${formatDateLabel(reportHighlights.bestDay.report.date)} - ${formatKr(reportHighlights.bestDay.totals.totalRevenue, 0)}` : 'No sales yet'} tone="good" />
+              <Metric label="Profit Champion" value={reportHighlights.profitChampion ? `${formatDateLabel(reportHighlights.profitChampion.report.date)} - ${formatKr(reportHighlights.profitChampion.totals.netProfit, 0)}` : 'No profit yet'} tone="good" />
+              <Metric label="Worst Day" value={reportHighlights.worstDay ? `${formatDateLabel(reportHighlights.worstDay.report.date)} - ${formatKr(reportHighlights.worstDay.totals.netProfit, 0)}` : 'No sales yet'} tone="warn" />
+              <Metric label="Expense Boss" value={reportHighlights.expenseBoss ? `${reportHighlights.expenseBoss.type} - ${formatKr(reportHighlights.expenseBoss.amount, 0)}` : 'No expenses'} tone={reportHighlights.expenseBoss ? 'warn' : 'good'} />
+            </section>
+
+            <div className="report-quest-grid">
+              <Panel title="Revenue Graph" icon={<BarChart3 size={18} />}>
+                <MiniBars rows={monthlyReportDays.map((entry) => ({ label: entry.report.date.slice(8), value: entry.totals.totalRevenue, display: formatKr(entry.totals.totalRevenue, 0) }))} />
+              </Panel>
+              <Panel title="Profit Graph" icon={<BarChart3 size={18} />}>
+                <MiniBars rows={monthlyReportDays.map((entry) => ({ label: entry.report.date.slice(8), value: entry.totals.netProfit, display: formatKr(entry.totals.netProfit, 0) }))} />
+              </Panel>
+              <Panel title="Profit Margin Trend" icon={<BarChart3 size={18} />}>
+                <MiniBars
+                  rows={monthlyReportDays.map((entry) => ({
+                    label: entry.report.date.slice(8),
+                    value: entry.totals.netRevenue > 0 ? (entry.totals.netProfit / entry.totals.netRevenue) * 100 : 0,
+                    display: `${formatNumber(entry.totals.netRevenue > 0 ? (entry.totals.netProfit / entry.totals.netRevenue) * 100 : 0, 1)}%`,
+                  }))}
+                />
+              </Panel>
+            </div>
+
+            <div className="report-highlight-grid">
+              <Panel title="Best-selling Products" icon={<IceCreamBowl size={18} />}>
+                <MiniBars rows={reportHighlights.topProducts.map((entry) => ({ label: entry.product, value: entry.quantity, display: `${formatNumber(entry.quantity, 0)} sold` }))} />
+              </Panel>
+              <Panel title="Biggest Expenses" icon={<WalletCards size={18} />}>
+                <MiniBars rows={[...monthSummary.expenseBreakdown].sort((a, b) => b.amount - a.amount).slice(0, 5).map((entry) => ({ label: entry.type, value: entry.amount, display: formatKr(entry.amount, 0) }))} />
+              </Panel>
+              <Panel title="Monthly Achievement Summary" icon={<Trophy size={18} />}>
+                <div className="monthly-achievement-list">
+                  {monthlyAchievements.length ? (
+                    monthlyAchievements.map((achievement) => (
+                      <span key={achievement.id}>
+                        <strong>{achievement.title}</strong>
+                        <small>{formatDateLabel(achievement.unlockDate)}</small>
+                      </span>
+                    ))
+                  ) : (
+                    <p className="muted">No badges unlocked this month yet.</p>
+                  )}
+                </div>
+              </Panel>
+            </div>
+
             <div className="metrics-grid">
+              <Metric label="Sales Streak" value={`${formatNumber(reportHighlights.salesStreak, 0)} days`} />
+              <Metric label="Stock Control" value={lowStockItems.length > 0 ? `${lowStockItems.length} alerts` : 'All clear'} tone={lowStockItems.length > 0 ? 'warn' : 'good'} />
               <Metric label="Sales incl. moms" value={formatKr(monthSummary.totalRevenue, 0)} />
               <Metric label="Sales ex. moms" value={formatKr(monthSummary.netRevenue, 0)} />
               <Metric label="Product cost ex. moms" value={formatKr(monthSummary.netProductCost, 0)} />
               <Metric label="Expenses ex. moms" value={formatKr(monthSummary.netExpenses, 0)} tone={monthSummary.netExpenses > 0 ? 'warn' : 'neutral'} />
-              <Metric label="Gross profit ex. moms" value={formatKr(monthSummary.grossProfit, 0)} tone="good" />
               <Metric label="Net profit ex. moms" value={formatKr(monthSummary.netProfit, 0)} tone={monthSummary.netProfit >= 0 ? 'good' : 'bad'} />
               <Metric label="Moms payable" value={formatKr(monthSummary.vatPayable, 0)} tone="warn" />
-              <Metric label="Best-selling product" value={monthSummary.bestSellingProduct} />
-              <Metric label="Items sold" value={formatNumber(monthSummary.totalItems, 0)} />
-              <Metric label="Average margin" value={`${formatNumber(monthSummary.averageProfitMargin * 100, 1)}%`} />
             </div>
-            <div className="chart-grid">
-              <Panel title="Daily Revenue" icon={<BarChart3 size={18} />}>
-                <MiniBars rows={monthSummary.dailyRevenue.map((entry) => ({ label: entry.date.slice(8), value: entry.revenue, display: formatKr(entry.revenue, 0) }))} />
-              </Panel>
-              <Panel title="Product Sales" icon={<IceCreamBowl size={18} />}>
-                <MiniBars rows={monthSummary.productBreakdown.map((entry) => ({ label: entry.product, value: entry.quantity }))} />
-              </Panel>
-              <Panel title="Expense Breakdown" icon={<WalletCards size={18} />}>
-                <MiniBars rows={monthSummary.expenseBreakdown.map((entry) => ({ label: entry.type, value: entry.amount, display: formatKr(entry.amount, 0) }))} />
-              </Panel>
-            </div>
+
+            <Panel title="Serious Review Tables" icon={<ReceiptText size={18} />}>
+              <div className="review-table-grid">
+                <div className="table-wrap compact">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Day</th>
+                        <th>Revenue</th>
+                        <th>Profit</th>
+                        <th>Margin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyReportDays.map((entry) => {
+                        const margin = entry.totals.netRevenue > 0 ? entry.totals.netProfit / entry.totals.netRevenue : 0
+                        return (
+                          <tr key={entry.report.id}>
+                            <td>{formatDateLabel(entry.report.date)}</td>
+                            <td>{formatKr(entry.totals.totalRevenue, 0)}</td>
+                            <td className={entry.totals.netProfit >= 0 ? 'positive' : 'negative'}>{formatKr(entry.totals.netProfit, 0)}</td>
+                            <td>{formatNumber(margin * 100, 1)}%</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  {!monthlyReportDays.length && <p className="muted empty-table-note">No reports for this month yet.</p>}
+                </div>
+                <div className="table-wrap compact">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Sold</th>
+                        <th>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthSummary.productBreakdown.map((entry) => (
+                        <tr key={entry.product}>
+                          <td>{entry.product}</td>
+                          <td>{formatNumber(entry.quantity, 0)}</td>
+                          <td>{formatKr(entry.revenue, 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!monthSummary.productBreakdown.length && <p className="muted empty-table-note">No product sales for this month yet.</p>}
+                </div>
+                <div className="table-wrap compact">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Expense</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthSummary.expenseBreakdown.map((entry) => (
+                        <tr key={entry.type}>
+                          <td>{entry.type}</td>
+                          <td>{formatKr(entry.amount, 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!monthSummary.expenseBreakdown.length && <p className="muted empty-table-note">No expenses for this month yet.</p>}
+                </div>
+              </div>
+            </Panel>
           </Screen>
         )}
 
@@ -2181,16 +2334,16 @@ function Totals({ totals }: { totals: ReturnType<typeof calculateReportTotals> }
 }
 
 function MiniBars({ rows }: { rows: { label: string; value: number; display?: string }[] }) {
-  const max = Math.max(...rows.map((row) => row.value), 1)
+  const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1)
   if (!rows.length) return <p className="muted">No data yet.</p>
 
   return (
     <div className="mini-bars">
       {rows.map((row) => (
-        <div className="bar-row" key={row.label}>
+        <div className={row.value < 0 ? 'bar-row negative-bar' : 'bar-row'} key={row.label}>
           <span>{row.label}</span>
           <div>
-            <i style={{ width: `${Math.max(4, (row.value / max) * 100)}%` }} />
+            <i style={{ width: `${Math.max(4, (Math.abs(row.value) / max) * 100)}%` }} />
           </div>
           <b>{row.display ?? formatNumber(row.value, 0)}</b>
         </div>
