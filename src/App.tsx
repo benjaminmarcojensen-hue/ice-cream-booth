@@ -22,12 +22,13 @@ import {
   expensesRows,
   monthlySummaryRows,
   pricingRows,
+  stockMovementRows,
   stockRows,
 } from './exporters'
 import { parseDailyReportText } from './parser'
-import { loadCloudConfig, loadData, resetData, saveCloudConfig, saveData } from './storage'
+import { loadCloudConfig, loadData, normalizeData, resetData, saveCloudConfig, saveData } from './storage'
 import { loadCloudData, saveCloudData, testCloudConnection } from './cloudStorage'
-import type { AppData, CloudConfig, DailyReport, Expense, ExpenseType, PaymentMethod, Product, StockItem } from './types'
+import type { AppData, CloudConfig, DailyReport, Expense, ExpenseType, PaymentMethod, Product, StockItem, StockMovement, StockMovementType } from './types'
 
 type TabId = 'dashboard' | 'daily' | 'pricing' | 'expenses' | 'stock' | 'summary' | 'import' | 'export'
 type IconComponent = (props: { size?: number }) => React.ReactElement
@@ -150,6 +151,8 @@ const tabs: { id: TabId; label: string; icon: IconComponent }[] = [
   { id: 'export', label: 'Export', icon: Download },
 ]
 
+const stockMovementTypes: StockMovementType[] = ['Received', 'Used', 'Waste', 'Adjustment +', 'Adjustment -']
+
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const emptyReportForDate = (date: string, products: Product[]): DailyReport => ({
@@ -181,6 +184,15 @@ const emptyStockItem = (name = 'New stock item', unit = 'units'): StockItem => (
   notes: '',
 })
 
+const emptyStockMovement = (stockItemId = '', date = toInputDate()): StockMovement => ({
+  id: createId('movement'),
+  stockItemId,
+  date,
+  type: 'Received',
+  quantity: 0,
+  notes: '',
+})
+
 const numberValue = (value: string) => Math.max(0, Number(value || 0))
 
 function App() {
@@ -195,6 +207,7 @@ function App() {
   const [draftExpenses, setDraftExpenses] = useState<Expense[]>([])
   const [selectedMonth, setSelectedMonth] = useState(monthKey(toInputDate()))
   const [selectedTubFlavor, setSelectedTubFlavor] = useState(data.flavors[0] ?? 'Vanilje')
+  const [movementDraft, setMovementDraft] = useState<StockMovement>(() => emptyStockMovement(data.stockItems[0]?.id))
   const [importText, setImportText] = useState('')
   const [parsedDraft, setParsedDraft] = useState<{ report: DailyReport; expenses: Expense[] } | null>(null)
   const [saveMessage, setSaveMessage] = useState('')
@@ -225,9 +238,10 @@ function App() {
         if (cancelled) return
 
         if (row?.data) {
+          const normalized = normalizeData(row.data)
           skipNextCloudSave.current = true
-          setData(row.data)
-          loadDraftForDate(reportDate, row.data)
+          setData(normalized)
+          loadDraftForDate(reportDate, normalized)
           setCloudStatus(`Cloud sync on. Last cloud update: ${new Date(row.updated_at).toLocaleString('da-DK')}`)
         } else {
           await saveCloudData(cloudConfig, data)
@@ -369,9 +383,10 @@ function App() {
     try {
       const row = await loadCloudData(cloudConfig)
       if (row?.data) {
+        const normalized = normalizeData(row.data)
         skipNextCloudSave.current = true
-        setData(row.data)
-        loadDraftForDate(reportDate, row.data)
+        setData(normalized)
+        loadDraftForDate(reportDate, normalized)
         setCloudStatus(`Loaded shared data from ${new Date(row.updated_at).toLocaleString('da-DK')}`)
       } else {
         setCloudStatus('No shared data found yet. Use “Push this browser to cloud”.')
@@ -410,8 +425,29 @@ function App() {
 
   const removeStockItem = (item: StockItem) => {
     if (confirm(`Remove stock item “${item.name}”?`)) {
-      setData((current) => ({ ...current, stockItems: current.stockItems.filter((entry) => entry.id !== item.id) }))
+      setData((current) => ({
+        ...current,
+        stockItems: current.stockItems.filter((entry) => entry.id !== item.id),
+        stockMovements: current.stockMovements.filter((movement) => movement.stockItemId !== item.id),
+      }))
+      setMovementDraft((current) => (current.stockItemId === item.id ? emptyStockMovement(data.stockItems.find((entry) => entry.id !== item.id)?.id) : current))
     }
+  }
+
+  const updateMovementDraft = (patch: Partial<StockMovement>) => {
+    setMovementDraft((current) => ({ ...current, ...patch }))
+  }
+
+  const addStockMovement = () => {
+    const stockItemId = movementDraft.stockItemId || data.stockItems[0]?.id
+    if (!stockItemId || movementDraft.quantity <= 0) return
+    const movement = { ...movementDraft, id: createId('movement'), stockItemId, quantity: Math.max(0, movementDraft.quantity || 0) }
+    setData((current) => ({ ...current, stockMovements: [movement, ...current.stockMovements] }))
+    setMovementDraft(emptyStockMovement(stockItemId))
+  }
+
+  const removeStockMovement = (movementId: string) => {
+    setData((current) => ({ ...current, stockMovements: current.stockMovements.filter((movement) => movement.id !== movementId) }))
   }
 
   const loadDraftForDate = (date: string, sourceData = data) => {
@@ -884,6 +920,86 @@ function App() {
               </div>
               <p className="muted">Use separate stock rows for each tub flavor, cone type, topping, packaging item, or cleaning supply.</p>
             </Panel>
+
+            <Panel title="Stock Movement Log" icon={<ReceiptText size={18} />}>
+              <div className="movement-editor">
+                <label>
+                  Item
+                  <select value={movementDraft.stockItemId || (data.stockItems[0]?.id ?? '')} onChange={(event) => updateMovementDraft({ stockItemId: event.target.value })}>
+                    {data.stockItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Date
+                  <input type="date" value={movementDraft.date} onChange={(event) => updateMovementDraft({ date: event.target.value })} />
+                </label>
+                <label>
+                  Type
+                  <select value={movementDraft.type} onChange={(event) => updateMovementDraft({ type: event.target.value as StockMovementType })}>
+                    {stockMovementTypes.map((type) => (
+                      <option key={type}>{type}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Quantity
+                  <input
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={movementDraft.quantity}
+                    onChange={(event) => updateMovementDraft({ quantity: numberValue(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  Notes
+                  <input value={movementDraft.notes} onChange={(event) => updateMovementDraft({ notes: event.target.value })} placeholder="Invoice, waste, correction..." />
+                </label>
+                <button className="primary-button" type="button" disabled={!data.stockItems.length || movementDraft.quantity <= 0} onClick={addStockMovement}>
+                  <Plus size={16} />
+                  Add movement
+                </button>
+              </div>
+              <div className="table-wrap movement-history">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Item</th>
+                      <th>Type</th>
+                      <th>Qty</th>
+                      <th>Notes</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...data.stockMovements]
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .slice(0, 8)
+                      .map((movement) => (
+                        <tr key={movement.id}>
+                          <td>{movement.date}</td>
+                          <td>{data.stockItems.find((item) => item.id === movement.stockItemId)?.name ?? 'Removed item'}</td>
+                          <td>{movement.type}</td>
+                          <td>{formatNumber(movement.quantity)}</td>
+                          <td>{movement.notes}</td>
+                          <td>
+                            <button className="remove-button" type="button" onClick={() => removeStockMovement(movement.id)}>
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+                {!data.stockMovements.length && <p className="muted empty-table-note">No stock movements yet.</p>}
+              </div>
+            </Panel>
+
             <div className="table-wrap stock-table-wrap">
               <table>
                 <thead>
@@ -892,7 +1008,8 @@ function App() {
                     <th>Product / ingredient</th>
                     <th>Unit</th>
                     <th>Starting</th>
-                    <th>Added</th>
+                    <th>Quick added</th>
+                    <th>Logged added</th>
                     <th>Used/sold</th>
                     <th>Manual used</th>
                     <th>Current</th>
@@ -904,7 +1021,7 @@ function App() {
                 </thead>
                 <tbody>
                   {data.stockItems.map((item) => {
-                    const stock = calculateStock(item, data.dailyReports)
+                    const stock = calculateStock(item, data.dailyReports, data.stockMovements)
                     return (
                       <tr key={item.id}>
                         <td className="action-column">
@@ -924,9 +1041,11 @@ function App() {
                         <td>
                           <input type="number" min="0" value={item.addedStock} onChange={(event) => updateStock(item.id, { addedStock: numberValue(event.target.value) })} />
                         </td>
+                        <td>{formatNumber(stock.movementAdded)}</td>
                         <td>
                           {formatNumber(stock.usedStock)}
-                          {item.linkedProductId && <span className="subtle">includes linked sales</span>}
+                          {item.linkedProductId && <span className="subtle">sales: {formatNumber(stock.linkedSales)}</span>}
+                          {stock.movementRemoved > 0 && <span className="subtle">log: {formatNumber(stock.movementRemoved)}</span>}
                         </td>
                         <td>
                           <input
@@ -1106,6 +1225,7 @@ function App() {
               <ExportButton label="Product pricing CSV" onClick={() => downloadCsv('product-pricing.csv', pricingRows(data))} />
               <ExportButton label="Expenses CSV" onClick={() => downloadCsv('expenses.csv', expensesRows(data))} />
               <ExportButton label="Stock CSV" onClick={() => downloadCsv('stock.csv', stockRows(data))} />
+              <ExportButton label="Stock history CSV" onClick={() => downloadCsv('stock-history.csv', stockMovementRows(data))} />
               <ExportButton label="Monthly summary CSV" onClick={exportMonthlySummary} />
               <ExportButton label="Full backup JSON" onClick={() => downloadJsonBackup(data)} />
               <ExportButton label="Workbook XLSX" onClick={() => downloadWorkbook(data, selectedMonth)} icon={<FileSpreadsheet size={18} />} />

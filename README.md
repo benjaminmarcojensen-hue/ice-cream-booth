@@ -41,9 +41,10 @@ Open **Stock**.
 
 - Use **Add stock item** for any ingredient, packaging item, cleaning supply, or other stock row.
 - Use **Add ice cream tub** to quickly create a separate tub row for a selected flavor.
-- Edit unit, starting stock, added stock, manual used stock, minimum stock level, notes, and linked product.
+- Edit unit, starting stock, quick added stock, manual used stock, minimum stock level, notes, and linked product.
+- Use **Stock Movement Log** for received stock, used stock, waste, and adjustments with dates and notes.
 - If a row is linked to a product, sales of that product are included in used stock.
-- For ice cream tubs, leave linked product as **Manual** and update **Manual used** when tubs are finished.
+- For ice cream tubs, leave linked product as **Manual** and log **Used** or **Waste** when tubs are finished or discarded.
 
 ## Import A Text Report
 
@@ -63,6 +64,7 @@ Open **Export** and choose:
 - Product pricing CSV
 - Expenses CSV
 - Stock CSV
+- Stock history CSV
 - Monthly summary CSV
 - Full backup JSON
 - Workbook XLSX

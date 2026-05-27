@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { calculateReportTotals, calculateStock, getLowStockItems } from '../src/calculations.ts'
 import { seedData } from '../src/data.ts'
-import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockRows } from '../src/exporters.ts'
+import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
 import { parseDailyReportText } from '../src/parser.ts'
 import type { DailyReport } from '../src/types.ts'
 
@@ -31,6 +31,14 @@ assert(lowStock.some(({ item }) => item.id === 'stock-drys'), 'Drys stock should
 const gufStock = seedData.stockItems.find((item) => item.id === 'stock-guf')
 assert(gufStock, 'Guf stock item should exist')
 assert.equal(calculateStock(gufStock, seedData.dailyReports).currentStock, 40, 'Guf stock should start at 40 portions')
+assert.equal(
+  calculateStock(gufStock, seedData.dailyReports, [
+    { id: 'test-received', stockItemId: 'stock-guf', date: '2026-05-24', type: 'Received', quantity: 10, notes: '' },
+    { id: 'test-waste', stockItemId: 'stock-guf', date: '2026-05-24', type: 'Waste', quantity: 2, notes: '' },
+  ]).currentStock,
+  48,
+  'Stock movement history should adjust current stock',
+)
 
 const parsed = parseDailyReportText('24/05: Alm. Softice 12, 1 Kugle 8, 2 Kugler 5, Guf 4, Drys 3, expenses 250 kr ice cream purchase', seedData)
 const parsedTotals = calculateReportTotals(parsed.report, seedData.products, parsed.expenses, seedData.settings)
@@ -44,6 +52,7 @@ assert(pricingRows(seedData).length === seedData.products.length, 'Pricing CSV r
 assert('profitPerSaleExVat' in pricingRows(seedData)[0], 'Pricing CSV should calculate profit ex. moms')
 assert(Array.isArray(expensesRows(seedData)), 'Expenses CSV rows should be generated')
 assert(stockRows(seedData).some((row) => row.reorderAlert === 'Order soon'), 'Stock CSV rows should include reorder alerts')
+assert(Array.isArray(stockMovementRows(seedData)), 'Stock movement CSV rows should be generated')
 assert(monthlySummaryRows({
   ...exampleTotals,
   month: '2026-05',

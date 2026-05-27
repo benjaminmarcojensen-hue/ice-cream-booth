@@ -204,7 +204,8 @@ button:disabled {
   align-items: end;
 }
 
-.stock-actions label {
+.stock-actions label,
+.movement-editor label {
   min-width: 220px;
 }
 
@@ -438,6 +439,21 @@ td .subtle {
   gap: 8px;
 }
 
+.movement-editor {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) 150px 160px 120px minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.movement-history {
+  margin-top: 14px;
+}
+
+.empty-table-note {
+  margin: 12px;
+}
+
 .money-input {
   position: relative;
   min-width: 130px;
@@ -535,7 +551,8 @@ td .subtle {
   .settings-grid,
   .cloud-settings,
   .flavor-grid,
-  .expense-editor {
+  .expense-editor,
+  .movement-editor {
     grid-template-columns: 1fr;
   }
 

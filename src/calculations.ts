@@ -8,6 +8,7 @@ import type {
   ReportTotals,
   Settings,
   StockItem,
+  StockMovement,
 } from './types'
 
 export const formatKr = (value: number, maximumFractionDigits = 2) =>
@@ -198,11 +199,35 @@ export const getLinkedSalesQuantity = (productId: string, reports: DailyReport[]
     0,
   )
 
-export const calculateStock = (stockItem: StockItem, reports: DailyReport[]) => {
+const getMovementQuantity = (movement: StockMovement) => {
+  const quantity = Math.max(0, movement.quantity || 0)
+  if (movement.type === 'Received' || movement.type === 'Adjustment +') return quantity
+  return -quantity
+}
+
+export const getStockMovementTotals = (stockItemId: string, movements: StockMovement[] = []) =>
+  movements
+    .filter((movement) => movement.stockItemId === stockItemId)
+    .reduce(
+      (totals, movement) => {
+        const quantity = Math.max(0, movement.quantity || 0)
+        if (movement.type === 'Received' || movement.type === 'Adjustment +') totals.added += quantity
+        if (movement.type === 'Used' || movement.type === 'Waste' || movement.type === 'Adjustment -') totals.removed += quantity
+        totals.net += getMovementQuantity(movement)
+        return totals
+      },
+      { added: 0, removed: 0, net: 0 },
+    )
+
+export const calculateStock = (stockItem: StockItem, reports: DailyReport[], movements: StockMovement[] = []) => {
   const linkedSales = stockItem.linkedProductId ? getLinkedSalesQuantity(stockItem.linkedProductId, reports) : 0
-  const usedStock = linkedSales + stockItem.manualUsedStock
-  const currentStock = stockItem.startingStock + stockItem.addedStock - usedStock
+  const movementTotals = getStockMovementTotals(stockItem.id, movements)
+  const usedStock = linkedSales + stockItem.manualUsedStock + movementTotals.removed
+  const currentStock = stockItem.startingStock + stockItem.addedStock + movementTotals.added - usedStock
   return {
+    linkedSales,
+    movementAdded: movementTotals.added,
+    movementRemoved: movementTotals.removed,
     usedStock,
     currentStock,
     reorderAlert: currentStock < stockItem.minimumStockLevel,
@@ -211,5 +236,5 @@ export const calculateStock = (stockItem: StockItem, reports: DailyReport[]) => 
 
 export const getLowStockItems = (data: AppData) =>
   data.stockItems
-    .map((item) => ({ item, status: calculateStock(item, data.dailyReports) }))
+    .map((item) => ({ item, status: calculateStock(item, data.dailyReports, data.stockMovements) }))
     .filter((entry) => entry.status.reorderAlert)

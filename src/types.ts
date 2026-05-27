@@ -64,6 +64,17 @@ export type StockItem = {
   notes: string
 }
 
+export type StockMovementType = 'Received' | 'Used' | 'Waste' | 'Adjustment +' | 'Adjustment -'
+
+export type StockMovement = {
+  id: string
+  stockItemId: string
+  date: string
+  type: StockMovementType
+  quantity: number
+  notes: string
+}
+
 export type Settings = {
   vatRegistered: boolean
   vatRate: number
@@ -81,6 +92,7 @@ export type AppData = {
   dailyReports: DailyReport[]
   expenses: Expense[]
   stockItems: StockItem[]
+  stockMovements: StockMovement[]
   flavors: string[]
   settings: Settings
 }

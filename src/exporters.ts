@@ -92,12 +92,16 @@ export const expensesRows = (data: AppData) =>
 
 export const stockRows = (data: AppData) =>
   data.stockItems.map((item) => {
-    const stock = calculateStock(item, data.dailyReports)
+    const stock = calculateStock(item, data.dailyReports, data.stockMovements)
     return {
       product: item.name,
       unit: item.unit,
       startingStock: item.startingStock,
-      addedStock: item.addedStock,
+      quickAddedStock: item.addedStock,
+      loggedAddedStock: stock.movementAdded,
+      linkedSalesUsage: stock.linkedSales,
+      loggedRemovedStock: stock.movementRemoved,
+      manualUsedStock: item.manualUsedStock,
       usedSoldStock: stock.usedStock,
       currentStock: stock.currentStock,
       minimumStockLevel: item.minimumStockLevel,
@@ -105,6 +109,15 @@ export const stockRows = (data: AppData) =>
       notes: item.notes,
     }
   })
+
+export const stockMovementRows = (data: AppData) =>
+  data.stockMovements.map((movement) => ({
+    date: movement.date,
+    product: data.stockItems.find((item) => item.id === movement.stockItemId)?.name ?? 'Removed item',
+    type: movement.type,
+    quantity: movement.quantity,
+    notes: movement.notes,
+  }))
 
 export const monthlySummaryRows = (summary: MonthlySummary) => [
   { metric: 'Sales incl. moms', value: summary.totalRevenue, formatted: formatKr(summary.totalRevenue) },
@@ -131,6 +144,7 @@ export const downloadWorkbook = (data: AppData, selectedMonth: string) => {
     ProductPricing: pricingRows(data),
     Expenses: expensesRows(data),
     Stock: stockRows(data),
+    StockHistory: stockMovementRows(data),
     MonthlySummary: monthlySummaryRows(summary),
   }
 

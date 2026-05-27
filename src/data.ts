@@ -159,6 +159,7 @@ export const seedData: AppData = {
       notes: 'Manual tracking first because scoop yield depends on tub size.',
     },
   ],
+  stockMovements: [],
   flavors: ['Vanilje', 'Chokolade', 'Lakrids', 'Citronsorbet', 'Oreo', 'Jordbær', 'Nougat'],
   settings: {
     vatRegistered: true,
