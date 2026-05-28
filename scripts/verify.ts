@@ -24,12 +24,20 @@ assert(may24Report, 'Seed report for 2026-05-24 should exist')
 const may24Totals = calculateReportTotals(may24Report, seedData.products, seedData.expenses, seedData.settings)
 assert.equal(may24Totals.totalRevenue, 4255, '24/05/2026 report revenue should be 4.255 kr.')
 
+const may25Report = seedData.dailyReports.find((report) => report.date === '2026-05-25')
+assert(may25Report, 'Seed report for 2026-05-25 should exist')
+const may25Totals = calculateReportTotals(may25Report, seedData.products, seedData.expenses, seedData.settings)
+assert.equal(may25Totals.totalRevenue, 576, '25/05/2026 report revenue should be 576 kr.')
+
 assert.deepEqual(getMonthRange('2026-05-23'), { start: '2026-05-01', end: '2026-05-31' }, 'Month range should use local calendar dates')
 assert.deepEqual(getWeekRange('2026-05-23'), { start: '2026-05-18', end: '2026-05-24' }, 'Week range should run Monday to Sunday')
+assert.deepEqual(getWeekRange('2026-05-25'), { start: '2026-05-25', end: '2026-05-31' }, 'New week should start on Monday for 25/05/2026')
 assert.equal(countDaysInclusive('2026-05-18', '2026-05-24'), 7, 'Inclusive day count should support dashboard goals')
 assert.equal(getReportStreak(seedData.dailyReports, '2026-05-23'), 1, 'Report streak should count consecutive report days')
 assert.equal(getReportStreak(seedData.dailyReports, '2026-05-24'), 2, 'Report streak should count both known May reports')
+assert.equal(getReportStreak(seedData.dailyReports, '2026-05-25'), 3, 'Report streak should count all three known May reports')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 8315, 'Date range dashboard summary should include both known May reports')
+assert.equal(calculateDateRangeSummary(seedData, '2026-05-01', '2026-05-31').totalRevenue, 8891, 'May dashboard summary should include 23/05, 24/05, and 25/05')
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
 const seedXp = calculateBusinessXp(seedData)
 assert(seedXp > 0, 'Business XP should be earned from seeded reports')
@@ -45,6 +53,7 @@ assert(getInventoryCards(seedData).some((entry) => entry.status === 'out' || ent
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 4000, shopQuestGoalVersion: 0 } }).settings.dailyRevenueGoal, 800, 'Old saved IsVognen goal should migrate to 800 kr.')
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 1200, shopQuestGoalVersion: 1 } }).settings.dailyRevenueGoal, 1200, 'User-edited current goal should be preserved')
 assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-05-24'), 'Known May reports should migrate into existing saved data')
+assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-05-25'), '25/05 report should migrate into existing saved data')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
 assert(seedData.recurringExpenses.some((expense) => expense.type === 'Cash register system'), 'Seed data should include a monthly cash register expense template')
 const expenseOnlySummary = calculateDateRangeSummary(
@@ -67,13 +76,13 @@ assert(lowStock.some(({ item }) => item.id === 'stock-drys'), 'Drys stock should
 
 const gufStock = seedData.stockItems.find((item) => item.id === 'stock-guf')
 assert(gufStock, 'Guf stock item should exist')
-assert.equal(calculateStock(gufStock, seedData.dailyReports).currentStock, 20, 'Guf stock should follow known Guf sales')
+assert.equal(calculateStock(gufStock, seedData.dailyReports).currentStock, 16, 'Guf stock should follow known Guf sales')
 assert.equal(
   calculateStock(gufStock, seedData.dailyReports, [
     { id: 'test-received', stockItemId: 'stock-guf', date: '2026-05-24', type: 'Received', quantity: 10, notes: '' },
     { id: 'test-waste', stockItemId: 'stock-guf', date: '2026-05-24', type: 'Waste', quantity: 2, notes: '' },
   ]).currentStock,
-  28,
+  24,
   'Stock movement history should adjust current stock',
 )
 

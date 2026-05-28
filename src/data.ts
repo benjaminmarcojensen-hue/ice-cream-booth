@@ -135,6 +135,16 @@ export const seedData: AppData = {
       ],
       notes: 'Imported from sales register for 24/05/2026.',
     },
+    {
+      id: 'report-2026-05-25',
+      date: '2026-05-25',
+      items: [
+        { productId: '1-kugle', quantity: 4 },
+        { productId: '2-kugler', quantity: 8 },
+        { productId: 'guf', quantity: 4 },
+      ],
+      notes: 'Imported from sales register for 25/05/2026.',
+    },
   ],
   expenses: [],
   recurringExpenses: [
