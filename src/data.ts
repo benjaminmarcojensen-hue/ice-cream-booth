@@ -124,6 +124,17 @@ export const seedData: AppData = {
       ],
       notes: 'Example report from 23/05/2026.',
     },
+    {
+      id: 'report-2026-05-24',
+      date: '2026-05-24',
+      items: [
+        { productId: 'drys', quantity: 23 },
+        { productId: '1-kugle', quantity: 42 },
+        { productId: '2-kugler', quantity: 48 },
+        { productId: 'guf', quantity: 20 },
+      ],
+      notes: 'Imported from sales register for 24/05/2026.',
+    },
   ],
   expenses: [],
   recurringExpenses: [

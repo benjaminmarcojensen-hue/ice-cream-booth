@@ -12,10 +12,15 @@ export const normalizeData = (data: Partial<AppData>): AppData => {
   const savedSettings = data.settings ?? {}
   const shouldMigrateShopQuestGoal = savedSettings.shopQuestGoalVersion !== seed.settings.shopQuestGoalVersion
   const stockItems = (data.stockItems ?? seed.stockItems).map((item) => ({ ...item, costPerUnit: item.costPerUnit ?? 0 }))
+  const dailyReportsByDate = new Map(seed.dailyReports.map((report) => [report.date, report]))
+  const savedDailyReports = data.dailyReports ?? []
+  savedDailyReports.forEach((report) => dailyReportsByDate.set(report.date, report))
+  const dailyReports = [...dailyReportsByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 
   return {
     ...seed,
     ...data,
+    dailyReports,
     stockItems,
     settings: {
       ...seed.settings,
