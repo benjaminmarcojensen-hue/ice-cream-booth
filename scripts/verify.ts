@@ -47,12 +47,14 @@ assert.equal(calculateDateRangeSummary(seedData, '2026-05-01', '2026-05-31').tot
 const yearToDateSummary = calculateDateRangeSummary(seedData, '2026-01-01', '2026-06-28')
 assert.equal(yearToDateSummary.totalRevenue, 24972, '2026 year-to-date summary should match POS revenue')
 assert.equal(yearToDateSummary.totalItems, 766, '2026 year-to-date summary should match POS item count')
+approx(yearToDateSummary.expenses, 9370.36, '2026 year-to-date summary should include first product purchase incl. moms')
+approx(yearToDateSummary.netExpenses, 7496.288, '2026 year-to-date net expenses should match first purchase excl. moms')
 assert(yearToDateSummary.productBreakdown.some((entry) => entry.product === 'Flødebolle' && entry.quantity === 1 && entry.revenue === 7), 'YTD summary should include Flødebolle')
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
 const seedXp = calculateBusinessXp(seedData)
 assert(seedXp > 0, 'Business XP should be earned from seeded reports')
 assert.equal(calculateReportXp(exampleTotals), 495, 'Daily report XP should include report, items, profit, revenue milestones, and stock control')
-assert.equal(getLevelProgress(seedXp).level, 5, 'Year-to-date data should move IsVognen to max level')
+assert.equal(getLevelProgress(seedXp).level, 4, 'Year-to-date data after first product purchase should move IsVognen to Summer Legend')
 assert.equal(getBusinessStreaks(seedData, '2026-05-23').report, 1, 'Gamified report streak should use saved sales reports')
 assert(getAchievements(seedData, getLevelProgress(seedXp)).some((achievement) => achievement.id === 'first-sale' && achievement.unlocked), 'First Sale achievement should unlock from seed report')
 assert(getAchievements(seedData, getLevelProgress(seedXp)).some((achievement) => achievement.id === 'first-report' && achievement.unlockDate === '2026-05-23'), 'First Report achievement should include an unlock date')
@@ -66,8 +68,17 @@ assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((repor
 assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-05-25'), '25/05 report should migrate into existing saved data')
 assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-06-28'), 'YTD adjustment should migrate into existing saved data')
 assert(normalizeData({ products: seedData.products.filter((product) => product.id !== 'flodebolle') }).products.some((product) => product.id === 'flodebolle'), 'New products should migrate into existing saved data')
+assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-first-product-purchase-2026-06-28'), 'First product purchase expense should migrate into existing saved data')
+assert(normalizeData({ stockItems: [] }).stockItems.some((item) => item.id === 'stock-cdo-chocolate-5l'), 'First purchase stock items should migrate into existing saved data')
+assert(normalizeData({ stockMovements: [] }).stockMovements.some((movement) => movement.id === 'movement-first-purchase-cdo-chocolate-5l'), 'First purchase stock movements should migrate into existing saved data')
 assert(expenseTypes.includes('Cash register system'), 'Expense types should include cash register system')
 assert(seedData.recurringExpenses.some((expense) => expense.type === 'Cash register system'), 'Seed data should include a monthly cash register expense template')
+const firstPurchaseExpense = seedData.expenses.find((expense) => expense.id === 'expense-first-product-purchase-2026-06-28')
+assert(firstPurchaseExpense, 'First product purchase expense should exist')
+approx(firstPurchaseExpense.amount, 9370.36, 'First product purchase should be entered incl. moms')
+const firstPurchaseMovements = seedData.stockMovements.filter((movement) => movement.date === '2026-06-28' && movement.type === 'Received')
+assert.equal(firstPurchaseMovements.length, 9, 'First product purchase should create one received movement per invoice line')
+assert.equal(firstPurchaseMovements.reduce((sum, movement) => sum + movement.quantity, 0), 26, 'First product purchase should receive 26 kolli')
 const expenseOnlySummary = calculateDateRangeSummary(
   { ...seedData, dailyReports: [], expenses: [{ id: 'expense-test', date: '2026-05-27', type: 'Other', description: 'Test', amount: 250, paymentMethod: 'Card', notes: '' }] },
   '2026-05-27',
@@ -97,6 +108,9 @@ assert.equal(
   -77,
   'Stock movement history should adjust current stock',
 )
+const chocolateStock = seedData.stockItems.find((item) => item.id === 'stock-cdo-chocolate-5l')
+assert(chocolateStock, 'Chocolate purchase stock item should exist')
+assert.equal(calculateStock(chocolateStock, seedData.dailyReports, seedData.stockMovements).currentStock, 3, 'Chocolate purchase stock should show 3 received kolli')
 
 const parsed = parseDailyReportText('24/05: Alm. Softice 12, 1 Kugle 8, 2 Kugler 5, Guf 4, Drys 3, expenses 250 kr ice cream purchase', seedData)
 const parsedTotals = calculateReportTotals(parsed.report, seedData.products, parsed.expenses, seedData.settings)

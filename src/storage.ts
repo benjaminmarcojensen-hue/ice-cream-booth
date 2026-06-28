@@ -15,18 +15,31 @@ export const normalizeData = (data: Partial<AppData>): AppData => {
   const savedProducts = data.products ?? []
   savedProducts.forEach((product) => productsById.set(product.id, product))
   const products = [...productsById.values()]
-  const stockItems = (data.stockItems ?? seed.stockItems).map((item) => ({ ...item, costPerUnit: item.costPerUnit ?? 0 }))
+  const stockItemsById = new Map(seed.stockItems.map((item) => [item.id, item]))
+  const savedStockItems = data.stockItems ?? []
+  savedStockItems.forEach((item) => stockItemsById.set(item.id, item))
+  const stockItems = [...stockItemsById.values()].map((item) => ({ ...item, costPerUnit: item.costPerUnit ?? 0 }))
   const dailyReportsByDate = new Map(seed.dailyReports.map((report) => [report.date, report]))
   const savedDailyReports = data.dailyReports ?? []
   savedDailyReports.forEach((report) => dailyReportsByDate.set(report.date, report))
   const dailyReports = [...dailyReportsByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  const expensesById = new Map(seed.expenses.map((expense) => [expense.id, expense]))
+  const savedExpenses = data.expenses ?? []
+  savedExpenses.forEach((expense) => expensesById.set(expense.id, expense))
+  const expenses = [...expensesById.values()].sort((a, b) => b.date.localeCompare(a.date))
+  const stockMovementsById = new Map(seed.stockMovements.map((movement) => [movement.id, movement]))
+  const savedStockMovements = data.stockMovements ?? []
+  savedStockMovements.forEach((movement) => stockMovementsById.set(movement.id, movement))
+  const stockMovements = [...stockMovementsById.values()].sort((a, b) => b.date.localeCompare(a.date))
 
   return {
     ...seed,
     ...data,
     products,
     dailyReports,
+    expenses,
     stockItems,
+    stockMovements,
     settings: {
       ...seed.settings,
       ...savedSettings,
