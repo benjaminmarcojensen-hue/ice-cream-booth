@@ -108,6 +108,15 @@ export const seedProducts: Product[] = [
     notes: 'Calculated from guf bucket settings unless manually overridden.',
     costSource: 'gufSetting',
   },
+  {
+    id: 'flodebolle',
+    name: 'Flødebolle',
+    category: 'Add-on',
+    portionSize: '1 piece',
+    costPerUnit: 0,
+    sellingPrice: 7,
+    notes: 'Imported from POS year-to-date sales.',
+  },
 ]
 
 export const seedData: AppData = {
@@ -144,6 +153,24 @@ export const seedData: AppData = {
         { productId: 'guf', quantity: 4 },
       ],
       notes: 'Imported from sales register for 25/05/2026.',
+    },
+    {
+      id: 'report-2026-ytd-adjustment',
+      date: '2026-06-28',
+      items: [
+        { productId: 'lille-softice', quantity: 17 },
+        { productId: 'alm-softice', quantity: 15 },
+        { productId: 'drys', quantity: 40 },
+        { productId: '1-kugle', quantity: 148 },
+        { productId: '2-kugler', quantity: 148 },
+        { productId: '3-kugler', quantity: 8 },
+        { productId: 'flodebolle', quantity: 1 },
+        { productId: 'syltetoj', quantity: 16 },
+        { productId: 'flodeskum', quantity: 10 },
+        { productId: 'softice-topping', quantity: 17 },
+        { productId: 'guf', quantity: 101 },
+      ],
+      notes: 'Year-to-date POS adjustment through 28/06/2026. This fills the difference between saved daily reports and POS totals: 766 items and 24.972 kr. revenue.',
     },
   ],
   expenses: [],

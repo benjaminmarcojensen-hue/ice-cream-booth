@@ -11,6 +11,10 @@ export const normalizeData = (data: Partial<AppData>): AppData => {
   const seed = cloneSeedData()
   const savedSettings = data.settings ?? {}
   const shouldMigrateShopQuestGoal = savedSettings.shopQuestGoalVersion !== seed.settings.shopQuestGoalVersion
+  const productsById = new Map(seed.products.map((product) => [product.id, product]))
+  const savedProducts = data.products ?? []
+  savedProducts.forEach((product) => productsById.set(product.id, product))
+  const products = [...productsById.values()]
   const stockItems = (data.stockItems ?? seed.stockItems).map((item) => ({ ...item, costPerUnit: item.costPerUnit ?? 0 }))
   const dailyReportsByDate = new Map(seed.dailyReports.map((report) => [report.date, report]))
   const savedDailyReports = data.dailyReports ?? []
@@ -20,6 +24,7 @@ export const normalizeData = (data: Partial<AppData>): AppData => {
   return {
     ...seed,
     ...data,
+    products,
     dailyReports,
     stockItems,
     settings: {
