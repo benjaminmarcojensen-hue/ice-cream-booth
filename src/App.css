@@ -246,25 +246,6 @@ button:disabled {
   gap: 14px;
 }
 
-.dashboard-period-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 18px;
-  background: rgba(255, 253, 248, 0.82);
-  box-shadow: 0 16px 35px rgba(86, 55, 31, 0.08);
-}
-
-.dashboard-period-toolbar > span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .booth-level-card,
 .mascot-tip,
 .stat-card,
@@ -2068,33 +2049,6 @@ button:disabled {
   flex-wrap: wrap;
   gap: 12px;
   align-items: end;
-}
-
-.period-filter {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  width: fit-content;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fffdf8;
-}
-
-.period-filter button {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.period-filter button.active {
-  background: #2f7d4c;
-  color: #ffffff;
 }
 
 .stock-actions {
