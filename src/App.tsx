@@ -431,6 +431,7 @@ function App() {
     () => calculateDateRangeSummary(data, dashboardRange.start, dashboardRange.end, dashboardRange.label),
     [dashboardRange.end, dashboardRange.label, dashboardRange.start, data],
   )
+  const dashboardNetMargin = dashboardSummary.netRevenue > 0 ? dashboardSummary.netProfit / dashboardSummary.netRevenue : 0
   const lowStockItems = getLowStockItems(data)
   const levelProgress = useMemo(() => getLevelProgress(calculateBusinessXp(data)), [data])
   const streaks = useMemo(() => getBusinessStreaks(data, today), [data, today])
@@ -822,7 +823,7 @@ function App() {
                 <StatCard label="Net Profit" value={<AnimatedValue value={dashboardSummary.netProfit} formatter={(value) => formatKr(value, 0)} />} icon={<Trophy size={20} />} tone={dashboardSummary.netProfit >= 0 ? 'good' : 'bad'} />
                 <StatCard label="Items Sold" value={<AnimatedValue value={dashboardSummary.totalItems} formatter={(value) => formatNumber(value, 0)} />} icon={<IceCreamBowl size={20} />} />
                 <StatCard label="Total Expenses" value={<AnimatedValue value={dashboardSummary.expenses} formatter={(value) => formatKr(value, 0)} />} icon={<WalletCards size={20} />} tone={dashboardSummary.expenses > 0 ? 'warn' : 'neutral'} />
-                <StatCard label="Profit Margin" value={<AnimatedValue value={dashboardSummary.averageProfitMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} icon={<BarChart3 size={20} />} tone={dashboardSummary.averageProfitMargin >= 0.35 ? 'good' : 'warn'} />
+                <StatCard label="Net Margin" value={<AnimatedValue value={dashboardNetMargin * 100} formatter={(value) => `${formatNumber(value, 1)}%`} />} icon={<BarChart3 size={20} />} tone={dashboardNetMargin >= 0.25 ? 'good' : 'warn'} note="After expenses, ex. moms" />
                 <StatCard label="Best Seller Overall" value={dashboardSummary.bestSellingProduct} icon={<IceCreamBowl size={20} />} note={dashboardSummary.totalItems > 0 ? `${formatNumber(dashboardSummary.totalItems, 0)} items sold` : 'No sales yet'} />
                 <StatCard label="Low Stock Warnings" value={lowStockItems.length > 0 ? `${lowStockItems.length} alert${lowStockItems.length === 1 ? '' : 's'}` : 'All clear'} icon={<AlertTriangle size={20} />} tone={lowStockItems.length > 0 ? 'warn' : 'good'} note={lowStockItems.slice(0, 2).map(({ item }) => item.name).join(', ') || 'Shelves look ready'} />
                 <ReportChartCard

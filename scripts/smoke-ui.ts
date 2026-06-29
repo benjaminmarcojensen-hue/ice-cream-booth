@@ -11,6 +11,7 @@ assert((await text()).includes('IsVognen'), 'Dashboard should show IsVognen bran
 assert((await text()).includes('Overall Report'), 'Dashboard should show the overall report')
 assert((await text()).includes('Current Streak'), 'Dashboard should show current streak')
 assert((await text()).includes('Total Expenses'), 'Dashboard should show total expenses')
+assert((await text()).includes('Net Margin'), 'Dashboard should show net margin after expenses')
 assert((await text()).includes('Expenses Breakdown'), 'Dashboard should show the expenses breakdown')
 assert((await text()).includes('Best Seller Overall'), 'Dashboard should show the overall best seller')
 assert((await text()).includes('Recent Achievements'), 'Dashboard should show recent achievements')
