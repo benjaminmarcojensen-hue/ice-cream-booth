@@ -29,11 +29,11 @@ assert(may25Report, 'Seed report for 2026-05-25 should exist')
 const may25Totals = calculateReportTotals(may25Report, seedData.products, seedData.expenses, seedData.settings)
 assert.equal(may25Totals.totalRevenue, 576, '25/05/2026 report revenue should be 576 kr.')
 
-const ytdAdjustmentReport = seedData.dailyReports.find((report) => report.date === '2026-06-29')
-assert(ytdAdjustmentReport, 'Year-to-date adjustment report for 2026-06-29 should exist')
+const ytdAdjustmentReport = seedData.dailyReports.find((report) => report.date === '2026-07-14')
+assert(ytdAdjustmentReport, 'Year-to-date adjustment report for 2026-07-14 should exist')
 const ytdAdjustmentTotals = calculateReportTotals(ytdAdjustmentReport, seedData.products, seedData.expenses, seedData.settings)
-assert.equal(ytdAdjustmentTotals.totalRevenue, 17247, 'YTD adjustment report should fill the missing 17.247 kr.')
-assert.equal(ytdAdjustmentTotals.totalItems, 558, 'YTD adjustment report should fill the missing 558 items')
+assert.equal(ytdAdjustmentTotals.totalRevenue, 47591, 'YTD adjustment report should fill the missing 47.591 kr.')
+assert.equal(ytdAdjustmentTotals.totalItems, 1582, 'YTD adjustment report should fill the missing 1.582 items')
 
 assert.deepEqual(getMonthRange('2026-05-23'), { start: '2026-05-01', end: '2026-05-31' }, 'Month range should use local calendar dates')
 assert.deepEqual(getWeekRange('2026-05-23'), { start: '2026-05-18', end: '2026-05-24' }, 'Week range should run Monday to Sunday')
@@ -44,12 +44,12 @@ assert.equal(getReportStreak(seedData.dailyReports, '2026-05-24'), 2, 'Report st
 assert.equal(getReportStreak(seedData.dailyReports, '2026-05-25'), 3, 'Report streak should count all three known May reports')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-18', '2026-05-24').totalRevenue, 8315, 'Date range dashboard summary should include both known May reports')
 assert.equal(calculateDateRangeSummary(seedData, '2026-05-01', '2026-05-31').totalRevenue, 8891, 'May dashboard summary should include 23/05, 24/05, and 25/05')
-const yearToDateSummary = calculateDateRangeSummary(seedData, '2026-01-01', '2026-06-29')
-assert.equal(yearToDateSummary.totalRevenue, 26138, '2026 year-to-date summary should match POS revenue')
-assert.equal(yearToDateSummary.totalItems, 803, '2026 year-to-date summary should match POS item count')
+const yearToDateSummary = calculateDateRangeSummary(seedData, '2026-01-01', '2026-07-14')
+assert.equal(yearToDateSummary.totalRevenue, 56482, '2026 year-to-date summary should match POS revenue')
+assert.equal(yearToDateSummary.totalItems, 1827, '2026 year-to-date summary should match POS item count')
 approx(yearToDateSummary.expenses, 10817.26, '2026 year-to-date summary should include product purchases incl. moms')
 approx(yearToDateSummary.netExpenses, 8653.808, '2026 year-to-date net expenses should include product purchases ex. moms')
-assert(yearToDateSummary.productBreakdown.some((entry) => entry.product === 'Flødebolle' && entry.quantity === 1 && entry.revenue === 7), 'YTD summary should include Flødebolle')
+assert(yearToDateSummary.productBreakdown.some((entry) => entry.product === 'Flødebolle' && entry.quantity === 2 && entry.revenue === 14), 'YTD summary should include Flødebolle')
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
 const seedXp = calculateBusinessXp(seedData)
 assert(seedXp > 0, 'Business XP should be earned from seeded reports')
@@ -66,8 +66,8 @@ assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal:
 assert.equal(normalizeData({ settings: { ...seedData.settings, dailyRevenueGoal: 1200, shopQuestGoalVersion: 1 } }).settings.dailyRevenueGoal, 1200, 'User-edited current goal should be preserved')
 assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-05-24'), 'Known May reports should migrate into existing saved data')
 assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-05-25'), '25/05 report should migrate into existing saved data')
-assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-06-29'), 'YTD adjustment should migrate into existing saved data')
-assert(!normalizeData({ dailyReports: [{ ...ytdAdjustmentReport, date: '2026-06-28', items: [{ productId: 'guf', quantity: 101 }] }] }).dailyReports.some((report) => report.date === '2026-06-28' && report.id === 'report-2026-ytd-adjustment'), 'Old POS adjustment should be replaced by the latest seed adjustment')
+assert(normalizeData({ dailyReports: [exampleReport] }).dailyReports.some((report) => report.date === '2026-07-14'), 'YTD adjustment should migrate into existing saved data')
+assert(!normalizeData({ dailyReports: [{ ...ytdAdjustmentReport, date: '2026-06-29', items: [{ productId: 'guf', quantity: 103 }] }] }).dailyReports.some((report) => report.date === '2026-06-29' && report.id === 'report-2026-ytd-adjustment'), 'Old POS adjustment should be replaced by the latest seed adjustment')
 assert(normalizeData({ products: seedData.products.filter((product) => product.id !== 'flodebolle') }).products.some((product) => product.id === 'flodebolle'), 'New products should migrate into existing saved data')
 assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-first-product-purchase-2026-06-28'), 'First product purchase expense should migrate into existing saved data')
 assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-more-purchases-waffles-2026-06-28'), 'Additional purchase expenses should migrate into existing saved data')
@@ -108,13 +108,13 @@ assert(lowStock.some(({ item }) => item.id === 'stock-drys'), 'Drys stock should
 
 const gufStock = seedData.stockItems.find((item) => item.id === 'stock-guf')
 assert(gufStock, 'Guf stock item should exist')
-assert.equal(calculateStock(gufStock, seedData.dailyReports).currentStock, -87, 'Guf stock should follow known Guf sales')
+assert.equal(calculateStock(gufStock, seedData.dailyReports).currentStock, -224, 'Guf stock should follow known Guf sales')
 assert.equal(
   calculateStock(gufStock, seedData.dailyReports, [
     { id: 'test-received', stockItemId: 'stock-guf', date: '2026-05-24', type: 'Received', quantity: 10, notes: '' },
     { id: 'test-waste', stockItemId: 'stock-guf', date: '2026-05-24', type: 'Waste', quantity: 2, notes: '' },
   ]).currentStock,
-  -79,
+  -216,
   'Stock movement history should adjust current stock',
 )
 const chocolateStock = seedData.stockItems.find((item) => item.id === 'stock-cdo-chocolate-5l')
