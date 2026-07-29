@@ -237,6 +237,15 @@ export const seedData: AppData = {
       paymentMethod: 'Bank',
       notes: 'Invoice 6356784764. Total shown as 14.145,28 kr. excl. moms for 45 kolli assorted ice cream and softice mix. Entered as 17.681,60 kr. incl. moms.',
     },
+    {
+      id: 'expense-paycheck-2026-07-29',
+      date: '2026-07-29',
+      type: 'Staff wages',
+      description: 'Paycheck withdrawal',
+      amount: 5000,
+      paymentMethod: 'Bank',
+      notes: 'Paycheck taken out of the business. Staff wages are treated as no-moms expenses, so the full 5.000 kr. reduces profit.',
+    },
   ],
   recurringExpenses: [
     {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { calculateDateRangeSummary, calculateReportTotals, calculateStock, countDaysInclusive, getLowStockItems, getMonthRange, getReportStreak, getWeekRange } from '../src/calculations.ts'
+import { calculateDateRangeSummary, calculateReportTotals, calculateStock, countDaysInclusive, getLowStockItems, getMonthRange, getReportStreak, getWeekRange, splitExpenseVat } from '../src/calculations.ts'
 import { expenseTypes, seedData } from '../src/data.ts'
 import { dailyReportsRows, expensesRows, monthlySummaryRows, pricingRows, stockMovementRows, stockRows } from '../src/exporters.ts'
 import { calculateBusinessXp, calculateReportXp, getAchievements, getBusinessHealth, getBusinessStreaks, getInventoryCards, getLevelProgress, getProductPerformance } from '../src/gamification.ts'
@@ -47,8 +47,8 @@ assert.equal(calculateDateRangeSummary(seedData, '2026-05-01', '2026-05-31').tot
 const yearToDateSummary = calculateDateRangeSummary(seedData, '2026-01-01', '2026-07-29')
 assert.equal(yearToDateSummary.totalRevenue, 93762, '2026 year-to-date summary should match POS revenue')
 assert.equal(yearToDateSummary.totalItems, 3121, '2026 year-to-date summary should match POS item count')
-approx(yearToDateSummary.expenses, 46062.43, '2026 year-to-date summary should include product purchases incl. moms')
-approx(yearToDateSummary.netExpenses, 36849.944, '2026 year-to-date net expenses should include product purchases ex. moms')
+approx(yearToDateSummary.expenses, 51062.43, '2026 year-to-date summary should include product purchases and paycheck')
+approx(yearToDateSummary.netExpenses, 41849.944, '2026 year-to-date net expenses should include product purchases ex. moms and full paycheck')
 assert(yearToDateSummary.productBreakdown.some((entry) => entry.product === 'Flødebolle' && entry.quantity === 2 && entry.revenue === 14), 'YTD summary should include Flødebolle')
 assert.equal(seedData.settings.dailyRevenueGoal, 800, 'Seed settings should include the 800 kr. daily sales goal')
 const seedXp = calculateBusinessXp(seedData)
@@ -73,6 +73,7 @@ assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id ===
 assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-more-purchases-waffles-2026-06-28'), 'Additional purchase expenses should migrate into existing saved data')
 assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-ice-cream-restock-2026-07-14'), 'July ice cream restock expenses should migrate into existing saved data')
 assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-unilever-restock-2026-07-17'), '17/07 Unilever restock expense should migrate into existing saved data')
+assert(normalizeData({ expenses: [] }).expenses.some((expense) => expense.id === 'expense-paycheck-2026-07-29'), 'Paycheck expense should migrate into existing saved data')
 assert(normalizeData({ stockItems: [] }).stockItems.some((item) => item.id === 'stock-cdo-chocolate-5l'), 'First purchase stock items should migrate into existing saved data')
 assert(normalizeData({ stockItems: [] }).stockItems.some((item) => item.id === 'stock-cdo-pistacie-5l'), 'Additional purchase stock items should migrate into existing saved data')
 assert(normalizeData({ stockItems: [] }).stockItems.some((item) => item.id === 'stock-cdo-vanilla-5l'), 'July restock stock items should migrate into existing saved data')
@@ -105,6 +106,11 @@ approx(july17PurchaseExpense.amount, 17681.6, '17/07 Unilever restock should be 
 const july17PurchaseMovements = seedData.stockMovements.filter((movement) => movement.date === '2026-07-17')
 assert.equal(july17PurchaseMovements.length, 12, '17/07 Unilever restock should create one received movement per invoice line')
 assert.equal(july17PurchaseMovements.reduce((sum, movement) => sum + movement.quantity, 0), 45, '17/07 Unilever restock should receive 45 kolli')
+const paycheckExpense = seedData.expenses.find((expense) => expense.id === 'expense-paycheck-2026-07-29')
+assert(paycheckExpense, 'Paycheck expense should exist')
+approx(paycheckExpense.amount, 5000, 'Paycheck expense should be 5.000 kr.')
+approx(splitExpenseVat(paycheckExpense, seedData.settings).net, 5000, 'Staff wages should reduce profit by the full amount')
+approx(splitExpenseVat(paycheckExpense, seedData.settings).vat, 0, 'Staff wages should not create deductible moms')
 const expenseOnlySummary = calculateDateRangeSummary(
   { ...seedData, dailyReports: [], expenses: [{ id: 'expense-test', date: '2026-05-27', type: 'Other', description: 'Test', amount: 250, paymentMethod: 'Card', notes: '' }] },
   '2026-05-27',

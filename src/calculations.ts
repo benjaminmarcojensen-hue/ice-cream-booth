@@ -105,6 +105,11 @@ export const splitVat = (amount: number, includesVat: boolean, settings: Setting
   return { gross: safeAmount + vat, net: safeAmount, vat }
 }
 
+const expenseHasDeductibleVat = (expense: Expense) => expense.type !== 'Staff wages'
+
+export const splitExpenseVat = (expense: Expense, settings: Settings) =>
+  expenseHasDeductibleVat(expense) ? splitVat(expense.amount, settings.expensesIncludeVat, settings) : { gross: expense.amount, net: expense.amount, vat: 0 }
+
 export const getProductCost = (product: Product, settings: Settings) => {
   if (product.costSource === 'gufSetting' && !product.manualCostOverride) {
     const portions = Math.max(1, settings.gufPortionsPerBucket)
@@ -157,7 +162,7 @@ export const calculateReportTotals = (
   const netProductCost = lines.reduce((sum, line) => sum + line.netProductCost, 0)
   const inputVatProductCosts = lines.reduce((sum, line) => sum + line.inputVat, 0)
   const grossProfit = netRevenue - netProductCost
-  const expenseSplits = getReportExpenses(report, expenses).map((expense) => splitVat(expense.amount, settings.expensesIncludeVat, settings))
+  const expenseSplits = getReportExpenses(report, expenses).map((expense) => splitExpenseVat(expense, settings))
   const expenseTotal = expenseSplits.reduce((sum, expense) => sum + expense.gross, 0)
   const netExpenses = expenseSplits.reduce((sum, expense) => sum + expense.net, 0)
   const inputVatExpenses = expenseSplits.reduce((sum, expense) => sum + expense.vat, 0)
